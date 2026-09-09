@@ -276,15 +276,23 @@ function ktepVenue(html: string): CanonicalVenue {
   const address = [street, city, region, postalCode].filter(Boolean).join(", ") || null;
   return { name, address, city, region, postalCode, latitude:null, longitude:null };
 }
+function normalizeExternalUrl(value: string | null) {
+  if (!value) return null;
+  const clean = decodeHtml(value.trim());
+  if (/^https?:\/\//i.test(clean)) return clean;
+  if (/^\/\//.test(clean)) return "https:" + clean;
+  if (/^(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/|$)/i.test(clean)) return "https://" + clean.replace(/^\/+/, "");
+  return null;
+}
 function ktepPrice(html: string) { return blockText(extractClassInner(html, "EventPage-information-price")); }
 function ktepTicketUrl(html: string) {
   const outer = html.match(/<div[^>]*class=["'][^"']*\bEventPage-ticketing\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] ?? "";
-  return decodeHtml(outer.match(/href=["']([^"']+)["']/i)?.[1] ?? "") || null;
+  return normalizeExternalUrl(outer.match(/href=["']([^"']+)["']/i)?.[1] ?? null);
 }
 function ktepOfficialUrl(html: string) {
   const outer = html.match(/<div[^>]*class=["'][^"']*\bPresentingOrganizationInformation-website\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i)?.[1] ?? "";
   const match = outer.match(/href=(?:["']([^"']+)["']|([^\s>]+))/i);
-  return decodeHtml(match?.[1] ?? match?.[2] ?? "") || null;
+  return normalizeExternalUrl(match?.[1] ?? match?.[2] ?? null);
 }
 async function fetchKtepDetail(url: string) {
   let promise = ktepDetailCache.get(url);
@@ -347,7 +355,7 @@ const ktepAdapter: SourceAdapter = {
     const contentId = html.match(/<meta[^>]+name=["']brightspot\.contentId["'][^>]+content=["']([^"']+)["']/i)?.[1] ?? item.url;
     const officialUrl = ktepOfficialUrl(html);
     const ticketUrl = ktepTicketUrl(html);
-    const image = metaContent(html, "og:image");
+    const image = normalizeExternalUrl(metaContent(html, "og:image"));
     const isFree = price ? (/^\s*(?:\$?0(?:\.00)?|free)\s*$/i.test(price) ? true : false) : (description && /\bfree\b/i.test(description) ? true : null);
     return {
       sourceKey: KTEP_SOURCE_KEY, sourceExternalId: contentId + "#" + item.occurrenceDate, sourceUrl: item.url,
