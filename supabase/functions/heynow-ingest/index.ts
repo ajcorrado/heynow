@@ -90,14 +90,20 @@ function normalizeRegion(value: string | null) {
 }
 function parseUnstructuredAddress(address: string) {
   const raw = address.replace(/\s+/g, " ").trim();
-  const postalCode = raw.match(/\b(\d{5})(?:-\d{4})?\b/)?.[1] ?? null;
+  const zipMatches = [...raw.matchAll(/\b(\d{5})(?:-\d{4})?\b/g)];
+  let postalCode = zipMatches.length ? zipMatches[zipMatches.length - 1][1] : null;
   let city: string | null = null;
   let region: string | null = null;
 
-  const us = raw.match(/,\s*([^,]+),\s*(TX|Tx\.?|Texas|NM|N\.?M\.?|New Mexico)\s*(?:\d{5}(?:-\d{4})?)?\s*$/i);
-  if (us) {
-    city = us[1].trim();
-    region = normalizeRegion(us[2]);
+  const usGeneral = raw.match(/,\s*([^,]+),\s*([A-Za-z. ]+?)(?:,\s*|\s+)(\d{5})(?:-\d{4})?(?:,\s*(?:USA|United States))?\s*$/i);
+  const usShort = raw.match(/,\s*([^,]+),\s*(TX|Tx\.?|Texas|NM|N\.?M\.?|New Mexico)\s*(?:\d{5}(?:-\d{4})?)?\s*$/i);
+  if (usGeneral) {
+    city = usGeneral[1].trim();
+    region = normalizeRegion(usGeneral[2].trim());
+    postalCode = usGeneral[3];
+  } else if (usShort) {
+    city = usShort[1].trim();
+    region = normalizeRegion(usShort[2]);
   } else if (/\bSocorro\b/i.test(raw)) {
     city = "Socorro"; region = "TX";
   } else if (/\bSan Elizario\b/i.test(raw)) {
@@ -109,8 +115,14 @@ function parseUnstructuredAddress(address: string) {
   } else if (/\bAlpine\b/i.test(raw)) {
     city = "Alpine"; region = "TX";
   } else {
-    const country = raw.match(/,\s*(Japan|Mexico|Canada|United States|USA)\s*$/i)?.[1] ?? null;
-    if (country) region = country;
+    const foreign = raw.match(/,\s*([^,]+),\s*(Japan|Mexico|Canada)\s*$/i);
+    if (foreign) {
+      city = foreign[1].trim();
+      region = foreign[2];
+    } else {
+      const country = raw.match(/,\s*(United States|USA)\s*$/i)?.[1] ?? null;
+      if (country) region = country;
+    }
   }
   return { rawAddress: raw || null, city, region, postalCode };
 }
