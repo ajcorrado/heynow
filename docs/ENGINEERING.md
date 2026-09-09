@@ -1,4 +1,3 @@
-sed: --: No such file or directory
 # HeyNow Engineering Brief
 
 Last updated: 2026-09-09 (Morning Editorial Sweep V1 foundation)

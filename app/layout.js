@@ -1,4 +1,3 @@
-sed: --: No such file or directory
 import "./globals.css";
 
 export const metadata = {

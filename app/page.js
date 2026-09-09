@@ -1,4 +1,3 @@
-sed: --: No such file or directory
 import Link from "next/link";
 
 export default function Home() {

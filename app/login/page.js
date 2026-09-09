@@ -1,4 +1,3 @@
-sed: --: No such file or directory
 "use client";
 
 import { useEffect, useState } from "react";

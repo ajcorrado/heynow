@@ -1,4 +1,3 @@
-sed: --: No such file or directory
 # HeyNow
 
 HeyNow is a hyperlocal event discovery system launching in El Paso.

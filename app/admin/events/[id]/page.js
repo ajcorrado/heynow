@@ -1,4 +1,3 @@
-sed: --: No such file or directory
 "use client";
 
 import Link from "next/link";
