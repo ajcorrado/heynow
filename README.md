@@ -1,3 +1,4 @@
+sed: --: No such file or directory
 # HeyNow
 
 HeyNow is a hyperlocal event discovery system launching in El Paso.
@@ -11,6 +12,8 @@ The immediate engineering focus is:
 3. source performance measurement
 4. editorial review
 5. product experience over real data
+
+The authenticated Product UI now includes a calendar/table Event Registry, canonical event detail, full source provenance, and three-stage editorial review.
 
 ## Architecture
 
@@ -35,6 +38,7 @@ The production Supabase project currently contains:
 - source priority history
 - source performance/health views
 - Visit El Paso ingestion adapter
+- KTEP ingestion adapter
 
 See `docs/ENGINEERING.md` for the living engineering brief.
 
@@ -54,9 +58,10 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 
 The publishable key is safe for browser use; RLS protects private data.
 
-## Internal registry
+## Internal registries
 
-`/admin/sources`
+- `/admin/events` — event inventory, filters, evidence, and review actions
+- `/admin/sources` — source catalog and operational performance
 
 The registry is intentionally separate from adapters: a source can exist and be prioritized without an automated scraper.
 

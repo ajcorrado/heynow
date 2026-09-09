@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
 
 const PRIORITY = { P0:0, P1:1, P2:2, P3:3, manual_only:4, deprioritized:5 };
@@ -65,6 +66,7 @@ export default function SourcesPage() {
           <div className="brand-mark">HEY NOW</div>
           <h1>Source Registry</h1>
           <p className="muted">{rows.length} known sources · {rows.filter(r=>r.priority_tier==="P0").length} P0 · {rows.filter(r=>r.adapter_status==="active").length} active adapter</p>
+          <nav className="admin-nav"><Link href="/admin/events">Events</Link><Link className="active" href="/admin/sources">Sources</Link><Link href="/admin/review">Morning Review</Link></nav>
         </div>
         <button className="button secondary" onClick={logout}>Sign out</button>
       </header>
@@ -108,3 +110,4 @@ export default function SourcesPage() {
     </main>
   );
 }
+sed: --: No such file or directory

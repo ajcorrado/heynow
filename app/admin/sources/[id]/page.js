@@ -1,3 +1,4 @@
+sed: --: No such file or directory
 "use client";
 
 import { useEffect, useState } from "react";
@@ -56,7 +57,7 @@ export default function SourceDetail() {
 
   return (
     <main className="page-shell">
-      <Link href="/admin/sources">← Source Registry</Link>
+      <div className="detail-breadcrumbs"><Link href="/admin/sources">← Source Registry</Link><Link href="/admin/events">Event Registry</Link><Link href="/admin/review">Morning Review</Link></div>
       <header className="detail-header">
         <div><div className="brand-mark">HEY NOW</div><h1>{source.name}</h1><p className="muted">{source.priority_tier} · {(source.source_roles||[]).join(" + ")} · {source.health}</p></div>
         {source.canonical_url ? <a className="button secondary" href={source.canonical_url} target="_blank" rel="noreferrer">Open source</a> : null}
@@ -69,7 +70,7 @@ export default function SourceDetail() {
         <div className="card"><h2>Performance</h2><Field label="Events seen / 30d">{source.events_seen_30d}</Field><Field label="Accepted / 30d">{source.events_accepted_30d}</Field><Field label="Rejected / 30d">{source.events_rejected_30d}</Field><Field label="Unique yield">{uniqueYield==null?"—":Math.round(Number(uniqueYield)*100)+"%"}</Field><Field label="Duplicate rate">{source.duplicate_rate_30d==null?"—":Math.round(Number(source.duplicate_rate_30d)*100)+"%"}</Field><Field label="Failures / 30d">{source.failure_count_30d}</Field><Field label="Last successful ingest">{fmtDate(source.last_successful_ingest_at)}</Field><Field label="Health">{source.health}</Field></div>
       </section>
 
-      <section className="card"><h2>Recent events</h2>{recent.length ? recent.map((r,i)=><div className="event-row" key={r.event_id+"-"+i}><div><strong>{r.event.title}</strong><div className="sub">{fmtDate(r.event.start_at)} · {r.event.venues?.name||"No venue"}{r.event.venues?.locality?" · "+r.event.venues.locality:""}</div></div><a href={r.source_url||"#"} target="_blank" rel="noreferrer">Source ↗</a></div>) : <p className="muted">No ingested events yet.</p>}</section>
+      <section className="card"><h2>Recent events</h2>{recent.length ? recent.map((r,i)=><div className="event-row" key={r.event_id+"-"+i}><div><Link href={`/admin/events/${r.event_id}`}><strong>{r.event.title}</strong></Link><div className="sub">{fmtDate(r.event.start_at)} · {r.event.venues?.name||"No venue"}{r.event.venues?.locality?" · "+r.event.venues.locality:""}</div></div>{r.source_url?<a href={r.source_url} target="_blank" rel="noreferrer">Source ↗</a>:null}</div>) : <p className="muted">No ingested events yet.</p>}</section>
 
       <section className="card-grid">
         <div className="card"><h2>Relationships</h2>{rels.length ? rels.map(r=><div className="history-row" key={r.id}><strong>{r.relation_type}</strong> · {r.otherName}<div className="sub">{r.notes}</div></div>) : <p className="muted">No recorded relationships.</p>}</div>
