@@ -11,7 +11,7 @@ HeyNow currently uses:
 - Supabase/Postgres — production persistence
 - Supabase Auth — internal admin access
 - Supabase Edge Functions — ingestion runtime
-- Vercel — application hosting target
+- Vercel — application hosting target; GitHub repo and Supabase project connected in Vercel on 2026-09-09
 
 The backend already contains canonical events, venues, sources, source runs, provenance, classifications, editorial state, and content drafts.
 
@@ -188,7 +188,7 @@ Known security debt:
 
 1. Current Visit El Paso geography parser should be upgraded before the next full run.
 2. The Visit El Paso adapter is stale and needs a new run.
-3. Source registry UI needs verified Vercel deployment.
+3. Source registry UI needs verified Vercel deployment after GitHub/Vercel integration test.
 4. First Supabase Auth admin user still needs to be created.
 5. Most P0 sources do not yet have adapters.
 6. App currently uses client-side Supabase Auth; acceptable for internal V1 but can be upgraded to SSR session enforcement later.
