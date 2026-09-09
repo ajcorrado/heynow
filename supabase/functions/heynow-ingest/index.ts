@@ -396,16 +396,27 @@ async function resolveVenue(supabase: SupabaseLike, marketCityId: string, event:
   });
   if (match) {
     const exactAddress = Boolean(event.venue.address && match.address_line_1 && normalizeText(event.venue.address) === normalizeText(match.address_line_1));
-    if (exactAddress || !match.address_line_1) {
+    if (exactAddress) {
       const patch: Record<string, unknown> = {
-        name: cleanName, normalized_name: normalized,
-        ...(event.venue.address ? { address_line_1:event.venue.address } : {}),
-        ...(event.venue.city ? { locality:event.venue.city } : {}),
-        ...(event.venue.region ? { region:event.venue.region } : {}),
-        ...(event.venue.postalCode ? { postal_code:event.venue.postalCode } : {}),
-        ...(event.venue.latitude != null ? { latitude:event.venue.latitude } : {}),
-        ...(event.venue.longitude != null ? { longitude:event.venue.longitude } : {})
+        name: cleanName,
+        normalized_name: normalized,
+        address_line_1: event.venue.address,
+        locality: event.venue.city,
+        region: event.venue.region,
+        postal_code: event.venue.postalCode
       };
+      if (event.venue.latitude != null) patch.latitude = event.venue.latitude;
+      if (event.venue.longitude != null) patch.longitude = event.venue.longitude;
+      const { error:updateError } = await supabase.from("venues").update(patch).eq("id", match.id);
+      if (updateError) throw updateError;
+    } else if (!match.address_line_1) {
+      const patch: Record<string, unknown> = { name: cleanName, normalized_name: normalized };
+      if (event.venue.address) patch.address_line_1 = event.venue.address;
+      if (event.venue.city) patch.locality = event.venue.city;
+      if (event.venue.region) patch.region = event.venue.region;
+      if (event.venue.postalCode) patch.postal_code = event.venue.postalCode;
+      if (event.venue.latitude != null) patch.latitude = event.venue.latitude;
+      if (event.venue.longitude != null) patch.longitude = event.venue.longitude;
       const { error:updateError } = await supabase.from("venues").update(patch).eq("id", match.id);
       if (updateError) throw updateError;
     }
