@@ -15,6 +15,32 @@ HeyNow currently uses:
 
 The backend already contains canonical events, venues, sources, source runs, provenance, classifications, editorial state, and content drafts.
 
+The internal application now has two connected Product surfaces:
+
+- `/admin/events` — canonical Event Registry with calendar and table modes
+- `/admin/sources` — ingestion Source Registry and source performance detail
+
+Both use the existing Supabase browser client and signed-in user session. Database access remains governed by the existing RLS policies and `private.is_admin()` membership check; no service-role credential is shipped to the client.
+
+## Event Registry and editorial review
+
+`/admin/events` reads canonical data from `events` and its existing relationships. It does not create a second event model or a competing cached copy.
+
+Registry capabilities:
+
+- upcoming-event metrics and multi-source count
+- calendar/agenda and table views
+- date-range, source, venue, locality, event status, review-stage/state, category, and text filters
+- direct navigation between event and source operations
+
+`/admin/events/[id]` exposes canonical facts, venue/geography, classification, source attribution, source runs, source URLs, extraction confidence, raw evidence, and the complete review history.
+
+The three gates map directly to `data_review_state`, `editorial_review_state`, and `publication_review_state`. The UI supports `pending`, `approved`, and `rejected`; data-quality flags use the schema's existing `needs_review` state. Every action also appends an `editorial_reviews` row with the stage, decision, previous/new values, reviewer ID, note, and timestamp.
+
+Duplicate and wrong-geography actions are deliberately non-destructive: the event and its provenance remain intact, data review moves to `needs_review`, and the audit decision is recorded as `duplicate`, `wrong_geography`, or `needs_review`.
+
+No new ingestion sources or adapters are part of this milestone.
+
 ## Product sequencing
 
 Locked near-term sequence:
@@ -88,7 +114,7 @@ Current registry state as of 2026-09-09:
 - 11 P1
 - 4 P2
 - 1 manual_only
-- 1 active automated adapter
+- 2 active automated adapters
 - 10 explicit source relationships
 
 ## Source registry — important definitions
@@ -135,8 +161,8 @@ Observed initial ingestion:
 ### KTEP Community Calendar
 Priority: P0  
 Role: breadth + edge  
-Adapter: not started  
-Initial scores are hypotheses until observed.
+Adapter: active  
+Observed current ingestion: 93 upcoming occurrences representing 92 canonical events, with full-run idempotency verified.
 
 ### Other P0 candidates
 - City of El Paso Events
@@ -173,11 +199,15 @@ Facts and judgment are intentionally separate.
 
 Source registry acceptance/rejection metrics use data-review state. Once events are reviewed, empirical source quality metrics become meaningful.
 
+The Event Registry is the operating surface for those states. `event_editorial` holds current state while `editorial_reviews` is the append-only decision trail. Product flags do not delete canonical events or provenance.
+
 ## Security
 
 - RLS enabled across the core schema
 - source registry views are authenticated-only
 - admin policies use `private.is_admin()`
+- Event Registry reads and review writes run as the signed-in user and remain subject to RLS
+- the browser bundle contains only the Supabase publishable key; no service-role key is used
 - ingestion function requires JWT
 - old diagnostic/bootstrap functions are disabled and JWT-protected
 

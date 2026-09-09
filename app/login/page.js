@@ -13,7 +13,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace("/admin/sources");
+      if (data.session) router.replace("/admin/events");
     });
   }, [router]);
 
@@ -24,14 +24,14 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (error) return setMessage(error.message);
-    router.replace("/admin/sources");
+    router.replace("/admin/events");
   }
 
   return (
     <main className="center-shell">
       <div className="brand-mark">HEY NOW</div>
       <h1>Internal login</h1>
-      <p className="muted">Source Registry access is restricted to HeyNow admins.</p>
+      <p className="muted">Event and Source Registry access is restricted to HeyNow admins.</p>
       <form className="login-card" onSubmit={submit}>
         <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
         <label>Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} required /></label>

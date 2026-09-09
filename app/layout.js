@@ -1,8 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "HeyNow Source Registry",
-  description: "Internal HeyNow source operations"
+  title: "HeyNow Registry",
+  description: "Internal HeyNow event and source operations"
 };
 
 export default function RootLayout({ children }) {
