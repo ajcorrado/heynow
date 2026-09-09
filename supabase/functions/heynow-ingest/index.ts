@@ -160,8 +160,8 @@ const KTEP_MAX_PAGES = 70;
 const ktepDetailCache = new Map<string, Promise<string>>();
 
 function escapeRegex(value: string) {
-  return value.replace(/[.*+?^\${}()|[\]\\]/g, "\\
-async function sha256(value: string)");
+  const special = new Set(["\\","^","$",".","|","?","*","+","(",")","[","]","{","}"]);
+  return [...value].map((char) => special.has(char) ? "\\" + char : char).join("");
 }
 function extractClassInner(html: string, className: string) {
   const escaped = escapeRegex(className);
