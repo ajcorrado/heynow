@@ -9,7 +9,20 @@ export default function MorningReview() {
   const router=useRouter(); const [run,setRun]=useState(null),[candidates,setCandidates]=useState([]),[coverage,setCoverage]=useState([]),[changes,setChanges]=useState([]),[duplicates,setDuplicates]=useState([]),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
   async function load(){ const {data:sessionData}=await supabase.auth.getSession(); if(!sessionData.session){router.replace("/login");return;} const {data:r}=await supabase.from("sweep_runs").select("*").order("created_at",{ascending:false}).limit(1).maybeSingle(); setRun(r); if(!r){setCandidates([]);return;} const [{data:c},{data:s},{data:p},{data:d}]=await Promise.all([supabase.from("sweep_candidates").select("*,events(*,venues(name,locality,region),event_sources(source_url,raw_text,last_seen_at))").eq("sweep_run_id",r.id).order("total_score",{ascending:false}),supabase.from("sweep_run_sources").select("*,sources(name)").eq("sweep_run_id",r.id),supabase.from("event_change_proposals").select("*,events(title)").eq("sweep_run_id",r.id),supabase.from("duplicate_suggestions").select("*").eq("sweep_run_id",r.id)]); setCandidates(c||[]);setCoverage(s||[]);setChanges(p||[]);setDuplicates(d||[]); }
   useEffect(()=>{load();},[]);
-  async function runSweep(){setBusy(true);setMessage("");const key="manual:"+new Date().toISOString()+":"+crypto.randomUUID(),{data,error}=await supabase.functions.invoke("heynow-sweep",{body:{idempotencyKey:key}});setBusy(false);setMessage(error?error.message:"Run "+data.run.status+": "+data.shortlistCount+" shortlisted");await load();}
+  async function runSweep(){
+    setBusy(true);setMessage("");
+    const key="manual:"+new Date().toISOString()+":"+crypto.randomUUID();
+    const {data,error}=await supabase.functions.invoke("heynow-sweep",{body:{idempotencyKey:key}});
+    setBusy(false);
+    if(error){
+      let detail=error.message;
+      if(error.context instanceof Response){
+        try{const response=await error.context.clone().json();detail=response.error||response.message||detail;}catch{}
+      }
+      setMessage("Sweep failed: "+detail);
+    }else setMessage("Run "+data.run.status+": "+data.shortlistCount+" shortlisted");
+    await load();
+  }
   async function decide(candidate,state){const reason=state==="rejected"?window.prompt("Optional rejection reason")||null:null,{data:{user}}=await supabase.auth.getUser();await supabase.from("sweep_candidates").update({review_state:state,reviewed_by:user.id,reviewed_at:new Date().toISOString(),rejection_reason:reason}).eq("id",candidate.id);await supabase.from("event_editorial").update({data_review_state:state==="deferred"?"needs_review":state,updated_at:new Date().toISOString()}).eq("event_id",candidate.event_id);await supabase.from("editorial_reviews").insert({event_id:candidate.event_id,reviewer_id:user.id,review_stage:"data",decision:state,notes:reason});await load();}
   async function proposal(id,status){const {data:{user}}=await supabase.auth.getUser();await supabase.from("event_change_proposals").update({status,reviewed_by:user.id,reviewed_at:new Date().toISOString()}).eq("id",id);await load();}
   return <main className="page-shell"><header className="topbar"><div><div className="brand-mark">HEY NOW</div><h1>Morning Review</h1><p className="muted">Evidence-backed candidates only. Approval does not publish.</p></div><div><Link className="button secondary" href="/admin/sources">Sources</Link> <button className="button" disabled={busy||run?.status==="running"} onClick={runSweep}>{busy?"Running…":"Run sweep"}</button></div></header>
@@ -21,4 +34,3 @@ export default function MorningReview() {
     <section className="card"><h2>Duplicates</h2>{duplicates.length?<p>{duplicates.length} suggestions awaiting review.</p>:<p className="muted">No duplicate suggestions.</p>}</section>
   </main>;
 }
-
