@@ -164,9 +164,22 @@ function escapeRegex(value: string) {
   return [...value].map((char) => special.has(char) ? "\\" + char : char).join("");
 }
 function extractClassInner(html: string, className: string) {
-  const escaped = escapeRegex(className);
-  const match = html.match(new RegExp("<(?:div|span|h1|h2|h3|p)[^>]*class=[\\\"'][^\\\"']*\\\\b" + escaped + "\\\\b[^\\\"']*[\\\"'][^>]*>([\\\\s\\\\S]*?)<\\\\/(?:div|span|h1|h2|h3|p)>", "i"));
-  return match ? match[1] : null;
+  const markers = ['class="' + className + '"', "class='" + className + "'"];
+  let markerIndex = -1;
+  for (const marker of markers) {
+    markerIndex = html.indexOf(marker);
+    if (markerIndex >= 0) break;
+  }
+  if (markerIndex < 0) return null;
+  const openStart = html.lastIndexOf("<", markerIndex);
+  const openEnd = html.indexOf(">", markerIndex);
+  if (openStart < 0 || openEnd < 0) return null;
+  const tag = html.slice(openStart + 1, openEnd).match(/^([a-z0-9-]+)/i)?.[1];
+  if (!tag) return null;
+  const close = "</" + tag + ">";
+  const closeIndex = html.indexOf(close, openEnd + 1);
+  if (closeIndex < 0) return null;
+  return html.slice(openEnd + 1, closeIndex);
 }
 function blockText(value: string | null) {
   if (!value) return null;
@@ -174,10 +187,18 @@ function blockText(value: string | null) {
   return text || null;
 }
 function metaContent(html: string, property: string) {
-  const p = escapeRegex(property);
-  const a = html.match(new RegExp("<meta[^>]+(?:property|name)=[\\\"']" + p + "[\\\"'][^>]+content=[\\\"']([\\\\s\\\\S]*?)[\\\"'][^>]*>", "i"));
-  const b = html.match(new RegExp("<meta[^>]+content=[\\\"']([\\\\s\\\\S]*?)[\\\"'][^>]+(?:property|name)=[\\\"']" + p + "[\\\"'][^>]*>", "i"));
-  return decodeHtml((a?.[1] ?? b?.[1] ?? "").trim()) || null;
+  const markers = ['property="' + property + '"', "property='" + property + "'", 'name="' + property + '"', "name='" + property + "'"];
+  for (const marker of markers) {
+    const index = html.indexOf(marker);
+    if (index < 0) continue;
+    const start = html.lastIndexOf("<meta", index);
+    const end = html.indexOf(">", index);
+    if (start < 0 || end < 0) continue;
+    const tag = html.slice(start, end + 1);
+    const match = tag.match(/content=["']([^"']*)["']/i);
+    if (match) return decodeHtml(match[1].trim()) || null;
+  }
+  return null;
 }
 function ktepMonth(month: string) {
   const months: Record<string, number> = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12 };
