@@ -1,6 +1,6 @@
 # HeyNow Engineering Brief
 
-Last updated: 2026-09-09
+Last updated: 2026-09-09 (Morning Editorial Sweep V1 foundation)
 
 ## Current architecture
 
@@ -203,3 +203,36 @@ Known security debt:
 5. implement KTEP adapter
 6. compare KTEP incremental yield against Visit El Paso
 7. choose next P0 source from measured gaps
+
+## Morning Editorial Sweep V1
+
+Implemented foundation:
+
+- authenticated manual `heynow-sweep` Edge Function
+- one-active-run-per-market lock and trigger idempotency key
+- immutable ten-source snapshot per run
+- separate retrieval and extraction status per source
+- explicit unsupported-source reporting
+- 30-day El Paso shortlist, capped at 20
+- versioned deterministic 0–2 editorial rubric
+- persistent candidate, evidence, proposed-change, and duplicate-review entities
+- private `/admin/review` interface with run summary and audited approve/reject/defer actions
+- zero model-token and zero variable-cost pilot budget
+
+Scheduling is deliberately disabled. A successful sweep currently requires all ten
+selected sources to complete, but only Visit El Paso and KTEP have active adapters.
+The pilot can therefore produce a truthful `partial` run while retaining useful
+results, but it cannot yet satisfy the ten-source acceptance gate.
+
+Current unsupported reasons:
+
+- no active adapter: City of El Paso, El Paso Live, Ticketmaster, UTEP, Lowbrow Palace, The Falstaff
+- authenticated/browser retrieval outside V1: Eventbrite, Bandsintown, Love Buzz, Neon Rose as applicable
+
+Operational blockers:
+
+1. No Vercel project is visible in the connected team, so the review UI is not deployed.
+2. No scheduler is installed; scheduling remains off until manual ten-source acceptance.
+3. The current ingestion function predates change proposals and still needs approved-fact
+   overwrite protection before accepted events can be refreshed safely.
+4. Manual end-to-end invocation requires an authenticated editor session.

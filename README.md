@@ -59,3 +59,10 @@ The publishable key is safe for browser use; RLS protects private data.
 `/admin/sources`
 
 The registry is intentionally separate from adapters: a source can exist and be prioritized without an automated scraper.
+
+## Morning review
+
+`/admin/review`
+
+The private review surface runs and inspects the Morning Editorial Sweep. Approval
+marks an event as editorially eligible; it never publishes the event.
