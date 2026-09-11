@@ -50,11 +50,11 @@ Deno.serve(async request => {
   if (createError) return json({ error: createError.code === "23505" ? "sweep_already_running" : createError.message }, 409);
   const exceptions:any[]=[]; let succeeded=0, failed=0, unsupported=0;
   for (const source of sources) {
-    const supported = source.adapter_status === "active" && ["visit-el-paso","ktep"].includes(source.parser_key);
+    const supported = source.adapter_status === "active" && ["visit-el-paso","ktep","el-paso-live","love-buzz","lowbrow-palace","the-falstaff","verso"].includes(source.parser_key);
     const { data: item } = await db.from("sweep_run_sources").insert({ sweep_run_id: run.id, source_id: source.id, status: supported ? "running" : "unsupported", retrieval_status: supported ? "pending" : "unsupported", extraction_status: supported ? "pending" : "skipped", started_at: new Date().toISOString(), error_message: supported ? null : (source.requires_login ? "Requires authenticated/browser retrieval not supported in V1" : "No active adapter") }).select("id").single();
     if (!supported) { unsupported++; exceptions.push({ source: source.name, status: "unsupported", reason: source.requires_login ? "authenticated_or_browser_source" : "adapter_not_implemented" }); continue; }
     try {
-      const response = await fetch(Deno.env.get("SUPABASE_URL")+"/functions/v1/heynow-ingest", { method: "POST", headers: { "content-type":"application/json", authorization: auth.authorization }, body: JSON.stringify({ sourceKey: source.parser_key, limit: SOURCE_LIMIT, horizonDays: HORIZON_DAYS }) });
+      const response = await fetch(Deno.env.get("SUPABASE_URL")+"/functions/v1/heynow-ingest", { method: "POST", headers: { "content-type":"application/json", authorization: auth.authorization }, body: JSON.stringify({ sourceKey: source.parser_key, limit: SOURCE_LIMIT, horizonDays: HORIZON_DAYS, sweepRunId: run.id }) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || "HTTP "+response.status);
       await db.from("source_runs").update({ sweep_run_id: run.id }).eq("id", result.runId);
       await db.from("sweep_run_sources").update({ source_run_id: result.runId, status: result.status === "success" ? "succeeded" : "failed", retrieval_status: "succeeded", extraction_status: result.extracted ? "succeeded" : "no_events", events_found: result.extracted || 0, error_message: result.errors?.length ? JSON.stringify(result.errors.slice(0,5)) : null, finished_at: new Date().toISOString() }).eq("id", item.id);
@@ -62,11 +62,12 @@ Deno.serve(async request => {
     } catch (error) { failed++; const message=error instanceof Error?error.message:String(error); exceptions.push({source:source.name,status:"failed",reason:message}); await db.from("sweep_run_sources").update({ status:"failed", retrieval_status:"failed", extraction_status:"skipped", error_message:message, finished_at:new Date().toISOString() }).eq("id",item.id); }
   }
   const horizon = new Date(Date.now()+HORIZON_DAYS*86400000).toISOString();
+  const { count: proposedChanges } = await db.from("event_change_proposals").select("id", { count:"exact", head:true }).eq("sweep_run_id", run.id);
   const { data: events } = await db.from("events").select("id,title,start_at,end_at,is_all_day,is_free,venue_id,venues(name,locality,region),event_editorial(data_review_state)").eq("city_id",city.id).gte("start_at",new Date().toISOString()).lt("start_at",horizon).order("start_at").limit(500);
   const eligible=(events||[]).filter((e:any)=>e.event_editorial?.data_review_state!=="rejected"), total=(a:any)=>a.local_relevance+a.distinctiveness+a.audience_fit+a.timeliness+a.usefulness;
   const ranked=eligible.map((event:any)=>({event,assessment:score(event)})).sort((a:any,b:any)=>total(b.assessment)-total(a.assessment)).slice(0,MAX_SHORTLIST);
   if(ranked.length) await db.from("sweep_candidates").upsert(ranked.map(({event,assessment}:any)=>({sweep_run_id:run.id,event_id:event.id,...assessment,rubric_version:RUBRIC_VERSION})),{onConflict:"sweep_run_id,event_id",ignoreDuplicates:true});
   const attempted=sources.length, finalStatus=failed===0&&unsupported===0?"succeeded":succeeded>0?"partial":"failed";
-  const { data: completed } = await db.from("sweep_runs").update({status:finalStatus,sources_attempted:attempted,sources_succeeded:succeeded,sources_failed:failed,sources_unsupported:unsupported,candidates_found:eligible.length,error_details:exceptions,finished_at:new Date().toISOString(),lock_expires_at:null}).eq("id",run.id).select("*").single();
+  const { data: completed } = await db.from("sweep_runs").update({status:finalStatus,sources_attempted:attempted,sources_succeeded:succeeded,sources_failed:failed,sources_unsupported:unsupported,candidates_found:eligible.length,proposed_changes:proposedChanges??0,error_details:exceptions,finished_at:new Date().toISOString(),lock_expires_at:null}).eq("id",run.id).select("*").single();
   return json({run:completed,shortlistCount:ranked.length,exceptions});
 });
