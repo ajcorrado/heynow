@@ -19,6 +19,7 @@ const fmtMoney = (min, max, currency = "USD") => {
   const format = cents => new Intl.NumberFormat("en-US", { style: "currency", currency: currency.trim() || "USD" }).format(cents / 100);
   return min != null && max != null && min !== max ? `${format(min)}–${format(max)}` : format(min ?? max);
 };
+const valueText = value => value && typeof value === "object" ? JSON.stringify(value, null, 2) : value == null ? "—" : String(value);
 
 function Field({ label, children }) {
   return <div className="field"><div className="field-label">{label}</div><div>{children ?? "—"}</div></div>;
@@ -34,6 +35,7 @@ export default function EventDetailPage() {
   const router = useRouter();
   const [event, setEvent] = useState(null);
   const [reviews, setReviews] = useState([]);
+  const [proposals, setProposals] = useState([]);
   const [user, setUser] = useState(null);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState("");
@@ -45,7 +47,7 @@ export default function EventDetailPage() {
     if (!sessionData.session) { router.replace("/login"); return; }
     setUser(sessionData.session.user);
 
-    const [{ data: eventData, error: eventError }, { data: reviewData, error: reviewError }] = await Promise.all([
+    const [{ data: eventData, error: eventError }, { data: reviewData, error: reviewError }, { data: proposalData, error: proposalError }] = await Promise.all([
       supabase.from("events").select(`
         *,
         cities(id,name,state_region,country_code,timezone),
@@ -57,10 +59,11 @@ export default function EventDetailPage() {
         event_tags(tags(id,name,slug))
       `).eq("id", id).maybeSingle(),
       supabase.from("editorial_reviews").select("*").eq("event_id", id).order("created_at", { ascending: false }).limit(50),
+      supabase.from("event_change_proposals").select("*,event_sources(source_url,sources(name))").eq("event_id", id).order("created_at", { ascending: false }).limit(100),
     ]);
 
-    if (eventError || reviewError) setError(eventError?.message || reviewError?.message);
-    else { setEvent(eventData); setReviews(reviewData || []); }
+    if (eventError || reviewError || proposalError) setError(eventError?.message || reviewError?.message || proposalError?.message);
+    else { setEvent(eventData); setReviews(reviewData || []); setProposals(proposalData || []); }
   }, [id, router]);
 
   useEffect(() => { load(); }, [load]);
@@ -86,6 +89,20 @@ export default function EventDetailPage() {
     if (auditError) setError(`State saved, but the review history entry failed: ${auditError.message}`);
     else setMessage(`${REVIEW_STAGES.find(item => item.column === stage)?.label || "Review"} saved.`);
     setNotes("");
+    await load();
+    setBusy("");
+  }
+
+  async function reviewProposal(proposalId, decision) {
+    if (busy) return;
+    setBusy(`proposal:${proposalId}`); setError(""); setMessage("");
+    const { error: proposalError } = await supabase.rpc("review_event_change_proposal", {
+      proposal_id: proposalId,
+      review_decision: decision,
+      review_notes: notes.trim() || null,
+    });
+    if (proposalError) setError(proposalError.message);
+    else { setMessage(`Change ${decision}.`); setNotes(""); }
     await load();
     setBusy("");
   }
@@ -135,6 +152,16 @@ export default function EventDetailPage() {
       <section className="card-grid event-facts-grid">
         <div className="card"><h2>Canonical facts</h2><Field label="Starts">{fmtDate(event.start_at)}{event.is_all_day ? " · all day" : ""}</Field><Field label="Ends">{fmtDate(event.end_at)}</Field><Field label="Doors">{fmtDate(event.doors_at)}</Field><Field label="Timezone">{event.timezone}</Field><Field label="Status">{event.status}</Field><Field label="Price">{event.is_free ? "Free" : fmtMoney(event.price_min_cents, event.price_max_cents, event.currency)}</Field><Field label="Age">{event.is_all_ages ? "All ages" : event.age_min != null ? `${event.age_min}+` : "—"}</Field><Field label="First seen">{fmtDate(event.first_seen_at)}</Field><Field label="Last verified">{fmtDate(event.last_verified_at)}</Field><Field label="Canonical ID"><code>{event.id}</code></Field></div>
         <div className="card"><h2>Venue & geography</h2><Field label="Venue">{venue?.name}</Field><Field label="Address">{[venue?.address_line_1, venue?.address_line_2].filter(Boolean).join(", ") || "—"}</Field><Field label="Locality">{venue?.locality}</Field><Field label="Region">{venue?.region}</Field><Field label="Postal code">{venue?.postal_code}</Field><Field label="City record">{city ? `${city.name}${city.state_region ? `, ${city.state_region}` : ""} · ${city.country_code}` : "—"}</Field><Field label="Coordinates">{venue?.latitude != null && venue?.longitude != null ? `${venue.latitude}, ${venue.longitude}` : "—"}</Field>{venue?.website_url ? <Field label="Venue URL"><a href={venue.website_url} target="_blank" rel="noreferrer">Open venue site ↗</a></Field> : null}</div>
+      </section>
+
+      <section className="card">
+        <div className="section-heading"><div><h2>Proposed fact changes</h2><p className="muted">Approved facts stay unchanged until a proposal is accepted here.</p></div><span className="pill warn">{proposals.filter(item => item.status === "pending").length} pending</span></div>
+        {proposals.length ? proposals.map(proposal => <article className="proposal-row" key={proposal.id}>
+          <div className="section-heading"><div><strong>{proposal.field_name.replaceAll("_", " ")}</strong><div className="sub">Detected {fmtDate(proposal.created_at)}{proposal.event_sources?.sources?.name ? ` · ${proposal.event_sources.sources.name}` : ""}</div></div><StatePill value={proposal.status === "accepted" ? "approved" : proposal.status} /></div>
+          <div className="proposal-values"><div><span>Current approved value</span><pre>{valueText(proposal.old_value)}</pre></div><div><span>Proposed source value</span><pre>{valueText(proposal.proposed_value)}</pre></div></div>
+          {proposal.evidence_excerpt ? <details><summary>Source evidence</summary><p className="prose">{proposal.evidence_excerpt}</p>{proposal.event_sources?.source_url ? <a href={proposal.event_sources.source_url} target="_blank" rel="noreferrer">Open source ↗</a> : null}</details> : null}
+          {proposal.status === "pending" ? <div><button disabled={Boolean(busy)} onClick={() => reviewProposal(proposal.id, "accepted")}>Accept and apply</button> <button disabled={Boolean(busy)} onClick={() => reviewProposal(proposal.id, "rejected")}>Reject</button></div> : null}
+        </article>) : <p className="muted">No source has proposed a change to approved facts.</p>}
       </section>
 
       <section className="card"><h2>Description</h2><p className="prose">{event.factual_description || "No factual description was extracted."}</p>{event.event_url ? <a href={event.event_url} target="_blank" rel="noreferrer">Event URL ↗</a> : null}</section>

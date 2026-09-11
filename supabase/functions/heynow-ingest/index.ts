@@ -60,9 +60,9 @@ function localDateTimeToUtc(value: string, timeZone: string): string {
 function isDateOnly(value: string | undefined | null) { return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value)); }
 function normalizeText(value: string) { return value.normalize("NFKD").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim(); }
 function slugify(value: string) { return normalizeText(value).replace(/\s+/g, "-").replace(/^-|-$/g, "") || "event"; }
-function obviousDuplicate(incoming: { title: string; startAt: string; venueId: string | null }, candidates: Array<{ id: string; title: string; startAt: string; venueId: string | null }>) {
+function obviousDuplicate(incoming: { title: string; startAt: string; venueName: string | null }, candidates: Array<{ id: string; title: string; startAt: string; venueName: string | null }>) {
   const title = normalizeText(incoming.title); const incomingTime = new Date(incoming.startAt).getTime();
-  return candidates.find((candidate) => normalizeText(candidate.title) === title && Math.abs(new Date(candidate.startAt).getTime() - incomingTime) <= 2 * 60 * 60 * 1000 && (!(incoming.venueId && candidate.venueId) || incoming.venueId === candidate.venueId)) ?? null;
+  return candidates.find((candidate) => normalizeText(candidate.title) === title && Math.abs(new Date(candidate.startAt).getTime() - incomingTime) <= 2 * 60 * 60 * 1000 && (!(incoming.venueName && candidate.venueName) || normalizeText(incoming.venueName) === normalizeText(candidate.venueName))) ?? null;
 }
 
 const VISIT_EL_PASO_SOURCE_KEY = "visit-el-paso";
@@ -162,6 +162,76 @@ function parseVisitElPasoEvent(html: string, sourceUrl: string, ingestedAt = new
   return { sourceKey: VISIT_EL_PASO_SOURCE_KEY, sourceExternalId: externalId, sourceUrl, title, description: fullDescription ?? stringOrNull(node.description), category: null, tags: [], startAt, endAt, timezone: VISIT_EL_PASO_TIMEZONE, isAllDay, venue, imageUrl: imageUrl(node), eventUrl, officialUrl: actions.officialUrl, ticketUrl: actions.ticketUrl, admissionText, isFree: admissionText ? /\bfree\b/i.test(admissionText) : null, ingestedAt, rawText: html, rawPayload: { jsonLdEvent: node, admissionText, officialUrl: actions.officialUrl, ticketUrl: actions.ticketUrl }, extractionConfidence: 0.97 };
 }
 const visitElPasoAdapter: SourceAdapter = { key: VISIT_EL_PASO_SOURCE_KEY, name: "Visit El Paso", async discover() { const res = await fetch(VISIT_EL_PASO_INDEX, { headers: { "user-agent": "HeyNow/0.1 (+event-ingestion)" } }); if (!res.ok) throw new Error(`Visit El Paso discovery failed: ${res.status}`); return discoverVisitElPasoEvents(await res.text()); }, async fetchAndNormalize(item) { const res = await fetch(item.url, { headers: { "user-agent": "HeyNow/0.1 (+event-ingestion)" } }); if (!res.ok) throw new Error(`Visit El Paso event fetch failed ${res.status}: ${item.url}`); return parseVisitElPasoEvent(await res.text(), item.url); } };
+
+type GenericAdapterConfig = {
+  key: string;
+  name: string;
+  index: string;
+  timezone?: string;
+  defaultVenue?: CanonicalVenue;
+  linkPattern: RegExp;
+};
+const genericHeaders = { "user-agent": "HeyNow/0.1 (+event-ingestion)", accept: "text/html,application/xhtml+xml" };
+function absoluteUrl(value: string, base: string) {
+  try { return new URL(value, base).toString(); } catch { return null; }
+}
+function discoverGenericEvents(html: string, base: string, config: GenericAdapterConfig): SourceDiscovery[] {
+  const found = new Set<string>();
+  for (const match of html.matchAll(/href=["']([^"']+)["']/gi)) {
+    const url = absoluteUrl(decodeHtml(match[1]), base);
+    if (!url || !config.linkPattern.test(url)) continue;
+    found.add(url.split(/[?#]/, 1)[0]);
+  }
+  for (const value of extractJsonLd(html)) {
+    const nodes: Record<string, unknown>[] = [];
+    const visit = (candidate: unknown) => {
+      if (!candidate || typeof candidate !== "object") return;
+      if (Array.isArray(candidate)) { candidate.forEach(visit); return; }
+      const object = candidate as Record<string, unknown>;
+      if (isEventType(object["@type"]) && stringOrNull(object.url)) nodes.push(object);
+      if (object["@graph"]) visit(object["@graph"]);
+      if (object.item) visit(object.item);
+    };
+    visit(value);
+    for (const node of nodes) { const url = absoluteUrl(String(node.url), base); if (url) found.add(url.split(/[?#]/, 1)[0]); }
+  }
+  return [...found].map((url) => ({ url, externalIdHint: `${url}#event` }));
+}
+function genericDate(value: string, timezone: string) {
+  if (/\d[T ]\d.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)) return new Date(value).toISOString();
+  return localDateTimeToUtc(value.replace(/\s+/, "T").replace(/T(\d{1,2}):(\d{2})\s*([AP]M)$/i, (_, h, m, ap) => `T${time24(`${h}:${m} ${ap}`)}`), timezone);
+}
+function genericOfferText(node: Record<string, unknown>) {
+  const offers = node.offers && typeof node.offers === "object" ? node.offers as Record<string, unknown> : {};
+  const price = stringOrNull(offers.price) ?? (typeof offers.lowPrice === "number" ? String(offers.lowPrice) : null);
+  const currency = stringOrNull(offers.priceCurrency);
+  return price ? `${currency ? currency + " " : ""}${price}` : null;
+}
+function parseGenericEvent(html: string, sourceUrl: string, config: GenericAdapterConfig): CanonicalEvent | null {
+  const node = extractJsonLd(html).map(findEventNode).find(Boolean) as Record<string, unknown> | undefined;
+  const title = stringOrNull(node?.name) ?? metaContent(html, "og:title");
+  const sourceStart = stringOrNull(node?.startDate);
+  if (!title || !sourceStart) return null;
+  const timezone = config.timezone ?? "America/Denver";
+  let startAt: string; try { startAt = genericDate(sourceStart, timezone); } catch { return null; }
+  const sourceEnd = stringOrNull(node?.endDate); let endAt: string | null = null;
+  if (sourceEnd) { try { endAt = genericDate(sourceEnd, timezone); } catch {} }
+  const venue = node ? parseLocation(node) : config.defaultVenue ?? { name: null, address: null, city: null, region: null, postalCode: null, latitude: null, longitude: null };
+  const resolvedVenue = venue.name ? venue : config.defaultVenue ?? venue;
+  const price = node ? genericOfferText(node) : null;
+  const description = stringOrNull(node?.description) ?? metaContent(html, "og:description");
+  const eventUrl = stringOrNull(node?.url) ?? sourceUrl;
+  const image = node ? imageUrl(node) : metaContent(html, "og:image");
+  return { sourceKey: config.key, sourceExternalId: stringOrNull(node?.["@id"]) ?? `${eventUrl}#event`, sourceUrl, title, description, category: null, tags: [], startAt, endAt, timezone, isAllDay: isDateOnly(sourceStart), venue: resolvedVenue, imageUrl: image, eventUrl, officialUrl: eventUrl, ticketUrl: null, admissionText: price, isFree: price ? /^(?:free|0(?:\.00)?)$/i.test(price.replace(/^[A-Z]{3}\s*/i, "")) : (description ? /\bfree\b/i.test(description) : null), ingestedAt: new Date().toISOString(), rawText: html, rawPayload: { jsonLdEvent: node ?? null }, extractionConfidence: node ? 0.9 : 0.55 };
+}
+function genericAdapter(config: GenericAdapterConfig): SourceAdapter {
+  return { key: config.key, name: config.name, async discover() { const res = await fetch(config.index, { headers: genericHeaders }); if (!res.ok) throw new Error(`${config.name} discovery failed: ${res.status}`); return discoverGenericEvents(await res.text(), config.index, config); }, async fetchAndNormalize(item) { const res = await fetch(item.url, { headers: genericHeaders }); if (!res.ok) throw new Error(`${config.name} event fetch failed ${res.status}: ${item.url}`); return parseGenericEvent(await res.text(), item.url, config); } };
+}
+const elPasoLiveAdapter = genericAdapter({ key: "el-paso-live", name: "El Paso Live", index: "https://www.elpasolive.com/events", linkPattern: /elpasolive\.com\/events\//i });
+const lowbrowAdapter = genericAdapter({ key: "lowbrow-palace", name: "Lowbrow Palace", index: "https://lowbrowpalace.com/calendar/", linkPattern: /lowbrowpalace\.com\/(?:event|calendar)\//i, defaultVenue: { name: "Lowbrow Palace", address: "111 E Robinson Ave, El Paso, TX 79902", city: "El Paso", region: "TX", postalCode: "79902", latitude: null, longitude: null } });
+const falstaffAdapter = genericAdapter({ key: "the-falstaff", name: "The Falstaff", index: "https://www.thefalstaffproject.com/events-1", linkPattern: /thefalstaffproject\.com\/events?[-/]/i, defaultVenue: { name: "The Falstaff", address: "3801 Frutas Avenue, Ste. E, El Paso, TX 79905", city: "El Paso", region: "TX", postalCode: "79905", latitude: null, longitude: null } });
+const loveBuzzAdapter = genericAdapter({ key: "love-buzz", name: "Love Buzz", index: "https://songkick.com/venues/3236249-love-buzz", linkPattern: /songkick\.com\/concerts\//i, defaultVenue: { name: "Love Buzz", address: "3011 Pershing Drive, El Paso, TX 79903", city: "El Paso", region: "TX", postalCode: "79903", latitude: null, longitude: null } });
+const versoAdapter = genericAdapter({ key: "verso", name: "VERSO", index: "https://www.versoelpaso.com/", linkPattern: /versoelpaso\.com\/event-details\//i, defaultVenue: { name: "VERSO", address: "2711 N Stanton St, El Paso, TX 79902", city: "El Paso", region: "TX", postalCode: "79902", latitude: null, longitude: null } });
 
 
 const KTEP_SOURCE_KEY = "ktep";
@@ -383,18 +453,58 @@ const ktepAdapter: SourceAdapter = {
 
 async function sha256(value: string) { const data = new TextEncoder().encode(value); const digest = await crypto.subtle.digest("SHA-256", data); return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join(""); }
 
-async function resolveVenue(supabase: SupabaseLike, marketCityId: string, event: CanonicalEvent) {
+function sameOptionalText(incoming: string | null, stored: string | null) {
+  return incoming == null || normalizeText(incoming) === normalizeText(stored ?? "");
+}
+function sameOptionalNumber(incoming: number | null, stored: number | null) {
+  return incoming == null || stored != null && Math.abs(incoming - stored) < 0.000001;
+}
+function venueSnapshot(venue: any, venueId: string | null) {
+  return {
+    venue_id: venueId,
+    name: venue?.name ?? null,
+    address_line_1: venue?.address_line_1 ?? null,
+    locality: venue?.locality ?? null,
+    region: venue?.region ?? null,
+    postal_code: venue?.postal_code ?? null,
+    latitude: venue?.latitude ?? null,
+    longitude: venue?.longitude ?? null
+  };
+}
+async function venueIsProtected(supabase: SupabaseLike, venueId: string) {
+  const { data, error } = await supabase.from("events").select("id,event_editorial!inner(data_review_state)").eq("venue_id", venueId).eq("event_editorial.data_review_state", "approved").limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+}
+async function resolveVenue(supabase: SupabaseLike, marketCityId: string, event: CanonicalEvent, options: { allowUpdates?: boolean; fallbackVenue?: any } = {}) {
   if (!event.venue.name) return null;
+  const allowUpdates = options.allowUpdates !== false;
   const cleanName = event.venue.name.replace(/\s+/g, " ").trim();
   const normalized = normalizeText(cleanName);
-  const { data, error } = await supabase.from("venues").select("id,address_line_1,locality,region,postal_code,name").eq("city_id", marketCityId).eq("normalized_name", normalized).limit(20);
+  const desired = {
+    name: cleanName,
+    address_line_1: event.venue.address ?? options.fallbackVenue?.address_line_1 ?? null,
+    locality: event.venue.city ?? options.fallbackVenue?.locality ?? null,
+    region: event.venue.region ?? options.fallbackVenue?.region ?? null,
+    postal_code: event.venue.postalCode ?? options.fallbackVenue?.postal_code ?? null,
+    latitude: event.venue.latitude ?? options.fallbackVenue?.latitude ?? null,
+    longitude: event.venue.longitude ?? options.fallbackVenue?.longitude ?? null
+  };
+  const { data, error } = await supabase.from("venues").select("id,address_line_1,locality,region,postal_code,name,latitude,longitude").eq("city_id", marketCityId).eq("normalized_name", normalized).limit(20);
   if (error) throw error;
   const match = (data ?? []).find((row: any) => {
+    if (!allowUpdates) return sameOptionalText(desired.address_line_1, row.address_line_1) && sameOptionalText(desired.locality, row.locality) && sameOptionalText(desired.region, row.region) && sameOptionalText(desired.postal_code, row.postal_code) && sameOptionalNumber(desired.latitude, row.latitude) && sameOptionalNumber(desired.longitude, row.longitude);
     if (event.venue.address && row.address_line_1 && normalizeText(event.venue.address) === normalizeText(row.address_line_1)) return true;
     if (event.venue.city && row.locality && normalizeText(event.venue.city) === normalizeText(row.locality)) return true;
     return !event.venue.address && !row.address_line_1;
   });
   if (match) {
+    if (!allowUpdates || await venueIsProtected(supabase, match.id)) {
+      if (sameOptionalText(desired.address_line_1, match.address_line_1) && sameOptionalText(desired.locality, match.locality) && sameOptionalText(desired.region, match.region) && sameOptionalText(desired.postal_code, match.postal_code) && sameOptionalNumber(desired.latitude, match.latitude) && sameOptionalNumber(desired.longitude, match.longitude)) return match.id;
+      const { data: staged, error: stagedError } = await supabase.from("venues").insert({ city_id: marketCityId, name: desired.name, normalized_name: normalized, ...desired, active: true }).select("id").single();
+      if (stagedError) throw stagedError;
+      return staged.id;
+    }
     const exactAddress = Boolean(event.venue.address && match.address_line_1 && normalizeText(event.venue.address) === normalizeText(match.address_line_1));
     if (exactAddress) {
       const patch: Record<string, unknown> = {
@@ -422,35 +532,78 @@ async function resolveVenue(supabase: SupabaseLike, marketCityId: string, event:
     }
     return match.id;
   }
-  const { data: created, error: createError } = await supabase.from("venues").insert({ city_id: marketCityId, name: cleanName, normalized_name: normalized, address_line_1: event.venue.address, postal_code: event.venue.postalCode, latitude: event.venue.latitude, longitude: event.venue.longitude, locality: event.venue.city, region: event.venue.region, active: true }).select("id").single();
+  const { data: created, error: createError } = await supabase.from("venues").insert({ city_id: marketCityId, name: desired.name, normalized_name: normalized, address_line_1: desired.address_line_1, postal_code: desired.postal_code, latitude: desired.latitude, longitude: desired.longitude, locality: desired.locality, region: desired.region, active: true }).select("id").single();
   if (createError) throw createError;
   return created.id;
 }
 
-async function candidateEvent(supabase: SupabaseLike, marketCityId: string, event: CanonicalEvent, venueId: string | null) { const normalizedTitle = normalizeText(event.title); const ms = new Date(event.startAt).getTime(); const start = new Date(ms - 2 * 60 * 60 * 1000).toISOString(); const end = new Date(ms + 2 * 60 * 60 * 1000).toISOString(); const { data, error } = await supabase.from("events").select("id,title,start_at,venue_id").eq("city_id", marketCityId).eq("normalized_title", normalizedTitle).gte("start_at", start).lte("start_at", end).limit(20); if (error) throw error; return obviousDuplicate({ title: event.title, startAt: event.startAt, venueId }, (data ?? []).map((row: any) => ({ id: row.id, title: row.title, startAt: row.start_at, venueId: row.venue_id }))); }
+async function candidateEvent(supabase: SupabaseLike, marketCityId: string, event: CanonicalEvent) { const normalizedTitle = normalizeText(event.title); const ms = new Date(event.startAt).getTime(); const start = new Date(ms - 2 * 60 * 60 * 1000).toISOString(); const end = new Date(ms + 2 * 60 * 60 * 1000).toISOString(); const { data, error } = await supabase.from("events").select("id,title,start_at,venues(normalized_name)").eq("city_id", marketCityId).eq("normalized_title", normalizedTitle).gte("start_at", start).lte("start_at", end).limit(20); if (error) throw error; return obviousDuplicate({ title: event.title, startAt: event.startAt, venueName: event.venue.name }, (data ?? []).map((row: any) => ({ id: row.id, title: row.title, startAt: row.start_at, venueName: (Array.isArray(row.venues) ? row.venues[0] : row.venues)?.normalized_name ?? null }))); }
 function eventPatch(event: CanonicalEvent, marketCityId: string, venueId: string | null) { return { city_id: marketCityId, venue_id: venueId, title: event.title, normalized_title: normalizeText(event.title), factual_description: event.description, start_at: event.startAt, end_at: event.endAt, timezone: event.timezone, is_all_day: event.isAllDay, is_free: event.isFree, event_url: event.eventUrl, official_url: event.officialUrl, ticket_url: event.ticketUrl, hero_image_url: event.imageUrl, status: "active", last_verified_at: event.ingestedAt, updated_at: event.ingestedAt }; }
-async function storeCanonicalEvent(supabase: SupabaseLike, source: any, runId: string, event: CanonicalEvent) {
-  const venueId = await resolveVenue(supabase, source.city_id, event); const { data: obs, error: lookupError } = await supabase.from("event_sources").select("id,event_id").eq("source_id", source.id).eq("external_id", event.sourceExternalId).maybeSingle(); if (lookupError) throw lookupError;
+function one(value: any) { return Array.isArray(value) ? value[0] : value; }
+function comparable(field: string, value: any) {
+  if (value == null) return null;
+  if (["start_at", "end_at", "doors_at"].includes(field)) return new Date(value).toISOString();
+  if (typeof value === "string") return value.replace(/\s+/g, " ").trim();
+  return value;
+}
+function changed(field: string, oldValue: any, proposedValue: any) { return JSON.stringify(comparable(field, oldValue)) !== JSON.stringify(comparable(field, proposedValue)); }
+async function storeCanonicalEvent(supabase: SupabaseLike, source: any, runId: string, event: CanonicalEvent, sweepRunId: string | null = null) {
+  const { data: obs, error: lookupError } = await supabase.from("event_sources").select("id,event_id").eq("source_id", source.id).eq("external_id", event.sourceExternalId).maybeSingle(); if (lookupError) throw lookupError;
   let eventId = obs?.event_id ?? null; let disposition: "created" | "source_match" | "dedupe_match" = "source_match";
-  if (!eventId) { const duplicate = await candidateEvent(supabase, source.city_id, event, venueId); if (duplicate) { eventId = duplicate.id; disposition = "dedupe_match"; } else { const externalHash = (await sha256(event.sourceExternalId)).slice(0, 8); const localDate = ((event.rawPayload.jsonLdEvent as any)?.startDate as string | undefined)?.slice(0,10) ?? event.startAt.slice(0,10); const slug = `${slugify(event.title)}-${localDate}-${externalHash}`; const { data: created, error } = await supabase.from("events").insert({ ...eventPatch(event, source.city_id, venueId), slug, first_seen_at: event.ingestedAt }).select("id").single(); if (error) throw error; eventId = created.id; disposition = "created"; } }
+  if (!eventId) { const duplicate = await candidateEvent(supabase, source.city_id, event); if (duplicate) { eventId = duplicate.id; disposition = "dedupe_match"; } }
+  let current: any = null; let currentVenue: any = null; let protectedEvent = false;
+  if (eventId) {
+    const { data, error } = await supabase.from("events").select("*,venues(id,name,address_line_1,locality,region,postal_code,latitude,longitude),event_editorial(data_review_state)").eq("id", eventId).single();
+    if (error) throw error;
+    current = data; currentVenue = one(data.venues); protectedEvent = one(data.event_editorial)?.data_review_state === "approved";
+  }
+  const venueId = await resolveVenue(supabase, source.city_id, event, { allowUpdates: !protectedEvent, fallbackVenue: protectedEvent ? currentVenue : null });
+  if (!eventId) { const externalHash = (await sha256(event.sourceExternalId)).slice(0, 8); const localDate = ((event.rawPayload.jsonLdEvent as any)?.startDate as string | undefined)?.slice(0,10) ?? event.startAt.slice(0,10); const slug = `${slugify(event.title)}-${localDate}-${externalHash}`; const { data: created, error } = await supabase.from("events").insert({ ...eventPatch(event, source.city_id, venueId), slug, first_seen_at: event.ingestedAt }).select("id").single(); if (error) throw error; eventId = created.id; disposition = "created"; }
+  else if (protectedEvent) { const { error } = await supabase.from("events").update({ last_verified_at: event.ingestedAt, updated_at: event.ingestedAt }).eq("id", eventId); if (error) throw error; }
   else { const { error } = await supabase.from("events").update(eventPatch(event, source.city_id, venueId)).eq("id", eventId); if (error) throw error; }
   const { error: editorialError } = await supabase.from("event_editorial").upsert({ event_id: eventId }, { onConflict: "event_id", ignoreDuplicates: true }); if (editorialError) throw editorialError;
   const contentHash = await sha256(event.rawText); const observationPatch = { event_id: eventId, source_run_id: runId, source_url: event.sourceUrl, raw_text: event.rawText, raw_payload: event.rawPayload, extracted_payload: { title: event.title, startAt: event.startAt, endAt: event.endAt, isAllDay: event.isAllDay, venue: event.venue, eventUrl: event.eventUrl, officialUrl: event.officialUrl, ticketUrl: event.ticketUrl, admissionText: event.admissionText, isFree: event.isFree }, content_hash: contentHash, extraction_confidence: event.extractionConfidence, last_seen_at: event.ingestedAt };
-  if (obs) { const { error } = await supabase.from("event_sources").update(observationPatch).eq("id", obs.id); if (error) throw error; } else { const { error } = await supabase.from("event_sources").insert({ source_id: source.id, external_id: event.sourceExternalId, discovered_at: event.ingestedAt, ...observationPatch }); if (error) throw error; }
-  return { eventId, disposition };
+  let observationId = obs?.id ?? null;
+  if (obs) { const { data, error } = await supabase.from("event_sources").update(observationPatch).eq("id", obs.id).select("id").single(); if (error) throw error; observationId = data.id; } else { const { data, error } = await supabase.from("event_sources").insert({ source_id: source.id, external_id: event.sourceExternalId, discovered_at: event.ingestedAt, ...observationPatch }).select("id").single(); if (error) throw error; observationId = data.id; }
+
+  let proposalsCreated = 0;
+  if (protectedEvent && current) {
+    const { data: proposedVenue, error: venueError } = venueId ? await supabase.from("venues").select("id,name,address_line_1,locality,region,postal_code,latitude,longitude").eq("id", venueId).single() : { data: null, error: null };
+    if (venueError) throw venueError;
+    const incoming = eventPatch(event, source.city_id, venueId) as Record<string, any>;
+    const material = ["title", "factual_description", "start_at", "end_at", "timezone", "status", "is_free", "official_url", "ticket_url", "hero_image_url", "is_all_day", "event_url"];
+    const proposals: any[] = [];
+    for (const field of material) {
+      if (!changed(field, current[field], incoming[field])) continue;
+      const fingerprint = await sha256(field + ":" + JSON.stringify(comparable(field, current[field])) + ":" + JSON.stringify(comparable(field, incoming[field])));
+      proposals.push({ event_id: eventId, sweep_run_id: sweepRunId, source_run_id: runId, observation_id: observationId, field_name: field, old_value: current[field], proposed_value: incoming[field], evidence_excerpt: stripTags(event.rawText).slice(0, 500), proposal_fingerprint: fingerprint });
+    }
+    const oldVenue = venueSnapshot(currentVenue, current.venue_id);
+    const newVenue = venueSnapshot(proposedVenue, venueId);
+    if (JSON.stringify(oldVenue) !== JSON.stringify(newVenue)) {
+      const fingerprint = await sha256("venue:" + JSON.stringify(oldVenue) + ":" + JSON.stringify(newVenue));
+      proposals.push({ event_id: eventId, sweep_run_id: sweepRunId, source_run_id: runId, observation_id: observationId, field_name: "venue", old_value: oldVenue, proposed_value: newVenue, evidence_excerpt: stripTags(event.rawText).slice(0, 500), proposal_fingerprint: fingerprint });
+    }
+    if (proposals.length) {
+      const { data, error } = await supabase.from("event_change_proposals").upsert(proposals, { onConflict: "event_id,proposal_fingerprint", ignoreDuplicates: true }).select("id");
+      if (error) throw error;
+      proposalsCreated = data?.length ?? 0;
+    }
+  }
+  return { eventId, disposition, proposalsCreated };
 }
 
-type IngestionOptions = { limit?: number; offset?: number; dryRun?: boolean; concurrency?: number };
+type IngestionOptions = { limit?: number; offset?: number; dryRun?: boolean; concurrency?: number; sweepRunId?: string | null };
 async function mapConcurrent<T,R>(items:T[], concurrency:number, worker:(item:T)=>Promise<R>) { const results=new Array<R>(items.length); let cursor=0; async function runner(){while(true){const index=cursor++; if(index>=items.length)return; results[index]=await worker(items[index]);}} await Promise.all(Array.from({length:Math.min(concurrency,items.length)},runner)); return results; }
 function publicExample(event: CanonicalEvent) { return { title:event.title,startAt:event.startAt,endAt:event.endAt,isAllDay:event.isAllDay,venue:event.venue,isFree:event.isFree,sourceUrl:event.sourceUrl,imageUrl:event.imageUrl }; }
 async function runIngestion(supabase:SupabaseLike, adapter:SourceAdapter, options:IngestionOptions={}) {
   const started=Date.now(); const {data:source,error:sourceError}=await supabase.from("sources").select("*").eq("parser_key",adapter.key).eq("active",true).maybeSingle(); if(sourceError)throw sourceError; if(!source)throw new Error(`No active source configured for adapter ${adapter.key}`);
-  const {data:run,error:runError}=await supabase.from("source_runs").insert({source_id:source.id,status:"running"}).select("id").single(); if(runError)throw runError;
-  const errors:Array<{url?:string;message:string}>=[]; let created=0,matched=0,sourceMatched=0,dedupeMatched=0,skipped=0; const examples:ReturnType<typeof publicExample>[]=[];
+  const {data:run,error:runError}=await supabase.from("source_runs").insert({source_id:source.id,status:"running",sweep_run_id:options.sweepRunId??null}).select("id").single(); if(runError)throw runError;
+  const errors:Array<{url?:string;message:string}>=[]; let created=0,matched=0,sourceMatched=0,dedupeMatched=0,skipped=0,proposalsCreated=0; const examples:ReturnType<typeof publicExample>[]=[];
   try { const discovered=await adapter.discover(); const offset=Math.max(0,options.offset??0); const limit=Math.max(1,Math.min(options.limit??discovered.length,400)); const slice=discovered.slice(offset,offset+limit); const extracted=await mapConcurrent(slice,Math.max(1,Math.min(options.concurrency??8,12)),async(item)=>{try{const event=await adapter.fetchAndNormalize(item);if(!event)skipped+=1;return{item,event};}catch(error){errors.push({url:item.url,message:error instanceof Error?error.message:String(error)});return{item,event:null};}});
-    for(const {event} of extracted){if(!event)continue;if(examples.length<12)examples.push(publicExample(event));if(options.dryRun)continue;try{const stored=await storeCanonicalEvent(supabase,source,run.id,event);if(stored.disposition==="created") created+=1; else { matched+=1; if(stored.disposition==="source_match") sourceMatched+=1; else dedupeMatched+=1; }}catch(error){errors.push({url:event.sourceUrl,message:error instanceof Error?error.message:String(error)});}}
-    const processed=extracted.filter((x)=>x.event).length; const status=errors.length===0?"success":processed>0?"partial":"failed"; const finishedAt=new Date().toISOString(); await supabase.from("source_runs").update({status,finished_at:finishedAt,observations_found:processed,events_created:created,events_matched:matched,error_count:errors.length,error_details:errors.slice(0,100),metadata:{adapter:adapter.key,total_discovered:discovered.length,requested_offset:offset,requested_limit:limit,skipped_non_events:skipped,dry_run:Boolean(options.dryRun),source_matches:sourceMatched,dedupe_matches:dedupeMatched,duration_ms:Date.now()-started}}).eq("id",run.id); await supabase.from("sources").update({last_checked_at:finishedAt,...(status!=="failed"?{last_success_at:finishedAt}:{})}).eq("id",source.id); return {runId:run.id,status,totalDiscovered:discovered.length,attempted:slice.length,extracted:processed,created,matched,skipped,errors:errors.slice(0,25),examples,durationMs:Date.now()-started};
+    for(const {event} of extracted){if(!event)continue;if(examples.length<12)examples.push(publicExample(event));if(options.dryRun)continue;try{const stored=await storeCanonicalEvent(supabase,source,run.id,event,options.sweepRunId??null);proposalsCreated+=stored.proposalsCreated;if(stored.disposition==="created") created+=1; else { matched+=1; if(stored.disposition==="source_match") sourceMatched+=1; else dedupeMatched+=1; }}catch(error){errors.push({url:event.sourceUrl,message:error instanceof Error?error.message:String(error)});}}
+    const processed=extracted.filter((x)=>x.event).length; const status=errors.length===0?"success":processed>0?"partial":"failed"; const finishedAt=new Date().toISOString(); await supabase.from("source_runs").update({status,finished_at:finishedAt,observations_found:processed,events_created:created,events_matched:matched,error_count:errors.length,error_details:errors.slice(0,100),metadata:{adapter:adapter.key,total_discovered:discovered.length,requested_offset:offset,requested_limit:limit,skipped_non_events:skipped,dry_run:Boolean(options.dryRun),source_matches:sourceMatched,dedupe_matches:dedupeMatched,proposed_changes:proposalsCreated,duration_ms:Date.now()-started}}).eq("id",run.id); await supabase.from("sources").update({last_checked_at:finishedAt,...(status!=="failed"?{last_success_at:finishedAt}:{})}).eq("id",source.id); return {runId:run.id,status,totalDiscovered:discovered.length,attempted:slice.length,extracted:processed,created,matched,skipped,proposalsCreated,errors:errors.slice(0,25),examples,durationMs:Date.now()-started};
   } catch(error){const message=error instanceof Error?error.message:String(error);await supabase.from("source_runs").update({status:"failed",finished_at:new Date().toISOString(),error_count:errors.length+1,error_details:[...errors,{message}].slice(0,100),metadata:{adapter:adapter.key,duration_ms:Date.now()-started}}).eq("id",run.id);await supabase.from("sources").update({last_checked_at:new Date().toISOString()}).eq("id",source.id);throw error;}
 }
-const adapters=new Map([[visitElPasoAdapter.key,visitElPasoAdapter],[ktepAdapter.key,ktepAdapter]]);
-Deno.serve(async(request)=>{if(request.method!=="POST")return Response.json({error:"method_not_allowed"},{status:405});try{const body=await request.json().catch(()=>({}));const sourceKey=typeof body.sourceKey==="string"?body.sourceKey:"visit-el-paso";const adapter=adapters.get(sourceKey);if(!adapter)return Response.json({error:"unknown_source",sourceKey},{status:400});const supabase=createClient(Deno.env.get("SUPABASE_URL")??"",Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"",{auth:{persistSession:false,autoRefreshToken:false}});const result=await runIngestion(supabase,adapter,{limit:typeof body.limit==="number"?body.limit:50,offset:typeof body.offset==="number"?body.offset:undefined,dryRun:body.dryRun===true,concurrency:typeof body.concurrency==="number"?body.concurrency:undefined});return Response.json(result);}catch(error){console.error(error);return Response.json({error:error instanceof Error?error.message:String(error)},{status:500});}});
+const adapters=new Map([[visitElPasoAdapter.key,visitElPasoAdapter],[ktepAdapter.key,ktepAdapter],[elPasoLiveAdapter.key,elPasoLiveAdapter],[loveBuzzAdapter.key,loveBuzzAdapter],[lowbrowAdapter.key,lowbrowAdapter],[falstaffAdapter.key,falstaffAdapter],[versoAdapter.key,versoAdapter]]);
+Deno.serve(async(request)=>{if(request.method!=="POST")return Response.json({error:"method_not_allowed"},{status:405});try{const body=await request.json().catch(()=>({}));const sourceKey=typeof body.sourceKey==="string"?body.sourceKey:"visit-el-paso";const adapter=adapters.get(sourceKey);if(!adapter)return Response.json({error:"unknown_source",sourceKey},{status:400});const supabase=createClient(Deno.env.get("SUPABASE_URL")??"",Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"",{auth:{persistSession:false,autoRefreshToken:false}});const result=await runIngestion(supabase,adapter,{limit:typeof body.limit==="number"?body.limit:50,offset:typeof body.offset==="number"?body.offset:undefined,dryRun:body.dryRun===true,concurrency:typeof body.concurrency==="number"?body.concurrency:undefined,sweepRunId:typeof body.sweepRunId==="string"?body.sweepRunId:null});return Response.json(result);}catch(error){console.error(error);return Response.json({error:error instanceof Error?error.message:String(error)},{status:500});}});

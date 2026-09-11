@@ -109,6 +109,12 @@ details { border-top: 1px solid #ddd; padding: 10px 0; }
 summary { cursor: pointer; font-weight: 700; font-size: 13px; }
 .evidence { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; background: #f5f3ed; padding: 12px; max-height: 430px; overflow: auto; }
 .history-row p { margin: 7px 0 0; }
+.proposal-row { border-top: 2px solid #111; padding: 18px 0; }
+.proposal-row:first-of-type { border-top: 0; }
+.proposal-values { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+.proposal-values > div { background: #f4f2ec; padding: 12px; min-width: 0; }
+.proposal-values span { display: block; margin-bottom: 8px; color: #6c6a63; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.proposal-values pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.5 monospace; }
 .events-table .review-pills { min-width: 230px; }
 
 @media (max-width: 1200px) {
@@ -118,6 +124,7 @@ summary { cursor: pointer; font-weight: 700; font-size: 13px; }
   .calendar-event { grid-template-columns: 80px 1fr; }
   .calendar-event .review-pills { grid-column: 2; }
   .mini-fields { grid-template-columns: 1fr; }
+  .proposal-values { grid-template-columns: 1fr; }
 }
 @media (max-width: 1000px) {
   .filters { grid-template-columns: 1fr 1fr; }

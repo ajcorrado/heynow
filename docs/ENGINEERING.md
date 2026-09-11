@@ -201,6 +201,14 @@ Source registry acceptance/rejection metrics use data-review state. Once events 
 
 The Event Registry is the operating surface for those states. `event_editorial` holds current state while `editorial_reviews` is the append-only decision trail. Product flags do not delete canonical events or provenance.
 
+### Approved-fact protection
+
+Once `data_review_state` is `approved`, ingestion may continue refreshing source observations and `last_verified_at`, but it may not silently replace material canonical facts. A changed source value creates an `event_change_proposals` row containing the current value, proposed value, source observation, evidence excerpt, and source/sweep run context.
+
+Database triggers provide a final safety boundary for approved event and venue facts. The ingestion adapter also avoids mutating venues referenced by approved events; materially different venue evidence is staged as a separate venue and proposed as an event venue change.
+
+`review_event_change_proposal` is an authenticated, admin-only, security-invoker RPC. It locks the proposal and event, rejects stale or already-reviewed proposals, applies accepted values, updates proposal status, and inserts the editorial audit row in one transaction. Rejected proposals leave canonical facts untouched. The Event Registry detail page shows proposals from direct or sweep ingestion; Morning Review shows proposals associated with its current sweep.
+
 ## Security
 
 - RLS enabled across the core schema
@@ -216,23 +224,20 @@ Known security debt:
 
 ## Technical debt
 
-1. Current Visit El Paso geography parser should be upgraded before the next full run.
-2. The Visit El Paso adapter is stale and needs a new run.
-3. Source registry UI needs verified Vercel deployment after GitHub/Vercel integration test.
-4. First Supabase Auth admin user still needs to be created.
-5. Most P0 sources do not yet have adapters.
-6. App currently uses client-side Supabase Auth; acceptable for internal V1 but can be upgraded to SSR session enforcement later.
-7. Full pre-registry historical schema is live in Supabase but was created before this GitHub baseline; future migrations must be committed before application.
+1. Most P0 sources do not yet have adapters.
+2. App currently uses client-side Supabase Auth; RLS remains authoritative, but SSR session enforcement is a future hardening step.
+3. Full pre-registry historical schema is live in Supabase but was created before this GitHub baseline; all new schema changes must continue to ship as committed migrations.
+4. Event Registry loading is client-side and capped at 1,000 rows; add server-side pagination before inventory approaches that limit.
+5. Supabase leaked-password protection is disabled, and `pg_trgm` remains installed in `public`.
 
 ## Next engineering milestones
 
-1. establish working Vercel deployment from this repo
-2. create first admin user and verify registry UI
-3. rerun Visit El Paso and verify idempotency
-4. fix Visit El Paso geography normalization
-5. implement KTEP adapter
-6. compare KTEP incremental yield against Visit El Paso
-7. choose next P0 source from measured gaps
+1. complete production acceptance testing of Event Registry and proposal decisions
+2. reach the reviewed-event threshold for Visit El Paso and KTEP
+3. begin canonical category assignments
+4. choose the next P0 adapter from measured coverage gaps
+5. satisfy the manual Morning Sweep acceptance gate before scheduling
+6. build the public event-discovery experience over publication-approved events
 
 ## Morning Editorial Sweep V1
 
@@ -261,8 +266,6 @@ Current unsupported reasons:
 
 Operational blockers:
 
-1. No Vercel project is visible in the connected team, so the review UI is not deployed.
-2. No scheduler is installed; scheduling remains off until manual ten-source acceptance.
-3. The current ingestion function predates change proposals and still needs approved-fact
-   overwrite protection before accepted events can be refreshed safely.
-4. Manual end-to-end invocation requires an authenticated editor session.
+1. No scheduler is installed; scheduling remains off until manual ten-source acceptance.
+2. Eight sources in the current ten-source sweep are unsupported, so runs correctly finish `partial`.
+3. Manual end-to-end invocation requires an authenticated editor session.
