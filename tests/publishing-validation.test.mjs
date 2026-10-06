@@ -16,6 +16,9 @@ test("enforces the frozen state machine", () => {
   assert.equal(canTransition("ready", "posted"), true);
   assert.equal(canTransition("posted", "draft"), false);
   assert.equal(canTransition("skipped", "draft"), true);
+  assert.equal(canTransition("draft", "posted"), false);
+  assert.equal(canTransition("ready", "skipped"), true);
+  assert.equal(canTransition("skipped", "ready"), false);
 });
 
 test("requires complete editorial fields before ready", () => {
@@ -32,4 +35,11 @@ test("only accepts HTTPS Instagram links", () => {
 test("posted requires an Instagram URL", () => {
   assert.ok(transitionErrors("ready", "posted", ready, {}).instagram_url);
   assert.deepEqual(transitionErrors("ready", "posted", ready, { instagram_url: "https://instagram.com/p/abc/" }), {});
+});
+
+test("enforces editorial length boundaries", () => {
+  assert.deepEqual(readinessErrors({ ...ready, headline: "x".repeat(90), editorial_take: "x".repeat(500), caption: "x".repeat(2200) }), {});
+  assert.ok(readinessErrors({ ...ready, headline: "x".repeat(91) }).headline);
+  assert.ok(readinessErrors({ ...ready, editorial_take: "x".repeat(501) }).editorial_take);
+  assert.ok(readinessErrors({ ...ready, caption: "x".repeat(2201) }).caption);
 });

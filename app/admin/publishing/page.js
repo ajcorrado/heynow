@@ -18,6 +18,7 @@ export default function PublishingPage() {
   const [cityId, setCityId] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [manualRequestId, setManualRequestId] = useState("");
   const [error, setError] = useState("");
 
   async function load(nextStatus = status) {
@@ -44,7 +45,9 @@ export default function PublishingPage() {
   async function createManual() {
     if (!cityId || busy) return;
     setBusy(true); setError("");
-    try { const id = await createManualDraft(cityId); router.push(`/admin/publishing/${id}`); }
+    const requestId = manualRequestId || crypto.randomUUID();
+    setManualRequestId(requestId);
+    try { const id = await createManualDraft(cityId, requestId); setManualRequestId(""); router.push(`/admin/publishing/${id}`); }
     catch (caught) { setError(caught.message); setBusy(false); }
   }
 

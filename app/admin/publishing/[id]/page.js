@@ -39,7 +39,11 @@ export default function PublishingEditorPage() {
       const next = normalizeContent(content);
       const revision = await saveDraft(draft.id, next, draft.revision);
       setDraft(current => ({ ...current, content: next, revision })); setContent(next); setMessage("Draft saved."); setBusy(""); return true;
-    } catch (caught) { setError(caught.message); setBusy(""); return false; }
+    } catch (caught) {
+      setError(caught.message);
+      if (caught.code === "40001" || caught.message?.includes("changed elsewhere")) await load();
+      setBusy(""); return false;
+    }
   }
 
   async function transition(target) {
@@ -48,21 +52,35 @@ export default function PublishingEditorPage() {
     if (Object.keys(clientErrors).length) { setError(Object.values(clientErrors)[0]); return; }
     setBusy(target); setError(""); setMessage("");
     try {
-      let revision = draft.revision;
-      if (draft.status !== "posted") {
-        const next = normalizeContent(content);
-        revision = await saveDraft(draft.id, next, revision);
-        setContent(next);
-      }
-      revision = await transitionDraft(draft.id, target, { instagram_url: instagramUrl }, revision);
-      setDraft(current => ({ ...current, content: normalizeContent(content), status: target, revision, instagram_url: target === "posted" ? instagramUrl : current.instagram_url }));
+      const next = draft.status === "draft" ? normalizeContent(content) : null;
+      const revision = await transitionDraft(draft.id, target, { instagram_url: instagramUrl }, draft.revision, next);
+      if (next) setContent(next);
+      setDraft(current => ({ ...current, content: next || current.content, status: target, revision, instagram_url: target === "posted" ? instagramUrl : current.instagram_url }));
       setMessage(target === "posted" ? "Instagram post recorded." : `Draft moved to ${target}.`); setBusy("");
-    } catch (caught) { setError(caught.message); setBusy(""); }
+    } catch (caught) {
+      setError(caught.message);
+      if (caught.code === "40001" || caught.message?.includes("changed elsewhere")) await load();
+      setBusy("");
+    }
+  }
+
+  async function copyCaption() {
+    setError(""); setMessage("");
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(content.caption);
+      else {
+        const area = document.createElement("textarea"); area.value = content.caption; area.style.position = "fixed"; area.style.opacity = "0";
+        document.body.appendChild(area); area.select();
+        if (!document.execCommand("copy")) throw new Error("Copy was blocked by this browser.");
+        document.body.removeChild(area);
+      }
+      setMessage("Caption copied.");
+    } catch (caught) { setError(caught.message || "Could not copy the caption."); }
   }
 
   if (!draft && !error) return <main className="page-shell">Loading draft…</main>;
   if (!draft) return <main className="page-shell"><Link href="/admin/publishing">← Publishing Desk</Link><div className="error-card">{error}</div></main>;
-  const locked = draft.status === "posted";
+  const locked = draft.status !== "draft";
   const readyIssues = readinessErrors(content);
   return <main className="page-shell publishing-editor">
     <div className="detail-breadcrumbs"><Link href="/admin/publishing">← Publishing Desk</Link>{draft.event_id ? <Link href={`/admin/events/${draft.event_id}`}>Source event</Link> : null}</div>
@@ -73,12 +91,12 @@ export default function PublishingEditorPage() {
       <section className="card publishing-form"><h2>Editorial package</h2>
         <label><span>Headline <small>{content.headline.length}/90</small></span><input disabled={locked} value={content.headline} onChange={e => setContent(field(content, "headline", e.target.value))} maxLength="90" /></label>
         <label><span>HeyNow take <small>{content.editorial_take.length}/500</small></span><textarea disabled={locked} rows="4" value={content.editorial_take} onChange={e => setContent(field(content, "editorial_take", e.target.value))} maxLength="500" /></label>
-        <label><span>Instagram caption <small>{content.caption.length}/2200</small></span><textarea disabled={locked} rows="10" value={content.caption} onChange={e => setContent(field(content, "caption", e.target.value))} maxLength="2200" /></label>
+        <label><span>Instagram caption <small>{content.caption.length}/2200</small></span><textarea disabled={locked} rows="10" value={content.caption} onChange={e => setContent(field(content, "caption", e.target.value))} maxLength="2200" /></label><button className="secondary" disabled={!content.caption} onClick={copyCaption}>Copy caption</button>
         <h3>Display facts</h3><div className="display-facts-grid">{["date","time","venue","locality","price","age"].map(key => <label key={key}><span>{key}</span><input disabled={locked} value={content.display_facts[key]} onChange={e => setContent(fact(content, key, e.target.value))} /></label>)}</div>
         {!locked ? <button disabled={Boolean(busy)} onClick={save}>{busy === "save" ? "Saving…" : "Save draft"}</button> : null}
       </section>
-      <aside><section className="card"><h2>Locked source snapshot</h2><p className="muted">This captured evidence never changes when you edit the post.</p><pre className="snapshot">{JSON.stringify(draft.fact_snapshot, null, 2)}</pre></section>
-        <section className="card"><h2>Workflow</h2>{draft.status === "draft" ? <><button disabled={Boolean(busy) || Object.keys(readyIssues).length > 0} onClick={() => transition("ready")}>Mark ready</button> <button className="secondary" disabled={Boolean(busy)} onClick={() => transition("skipped")}>Skip</button>{Object.keys(readyIssues).length ? <p className="sub">Complete the required editorial fields to mark Ready.</p> : null}</> : null}{draft.status === "ready" ? <><label><span>Instagram post URL</span><input placeholder="https://www.instagram.com/p/…" value={instagramUrl} onChange={e => setInstagramUrl(e.target.value)} /></label><button disabled={Boolean(busy)} onClick={() => transition("posted")}>Record as posted</button> <button className="secondary" disabled={Boolean(busy)} onClick={() => transition("draft")}>Return to draft</button> <button className="secondary" disabled={Boolean(busy)} onClick={() => transition("skipped")}>Skip</button></> : null}{draft.status === "skipped" ? <button disabled={Boolean(busy)} onClick={() => transition("draft")}>Restore draft</button> : null}{draft.status === "posted" ? <p><a href={draft.instagram_url} target="_blank" rel="noreferrer">Open Instagram post ↗</a></p> : null}</section>
+      <aside><section className="card"><h2>Locked source snapshot</h2><p className="muted">This captured evidence never changes when you edit the post.</p>{draft.fact_snapshot?.sources?.length ? <div className="snapshot-sources">{draft.fact_snapshot.sources.map((source, index) => <p key={`${source.url || source.name}-${index}`}><strong>{source.name || "Source"}</strong>{source.url ? <><br /><a href={source.url} target="_blank" rel="noreferrer">Open evidence ↗</a></> : null}</p>)}</div> : null}<details><summary>All captured facts</summary><pre className="snapshot">{JSON.stringify(draft.fact_snapshot, null, 2)}</pre></details></section>
+        <section className="card"><h2>Workflow</h2>{draft.status === "draft" ? <><button disabled={Boolean(busy) || Object.keys(readyIssues).length > 0} onClick={() => transition("ready")}>Save & mark ready</button> <button className="secondary" disabled={Boolean(busy)} onClick={() => transition("skipped")}>Save & skip</button>{Object.keys(readyIssues).length ? <p className="sub">Complete the required editorial fields to mark Ready.</p> : null}</> : null}{draft.status === "ready" ? <><label><span>Instagram post URL</span><input type="url" inputMode="url" autoCapitalize="none" placeholder="https://www.instagram.com/p/…" value={instagramUrl} onChange={e => setInstagramUrl(e.target.value)} /></label><button disabled={Boolean(busy)} onClick={() => transition("posted")}>Record as posted</button> <button className="secondary" disabled={Boolean(busy)} onClick={() => transition("draft")}>Return to draft</button> <button className="secondary" disabled={Boolean(busy)} onClick={() => transition("skipped")}>Skip</button></> : null}{draft.status === "skipped" ? <button disabled={Boolean(busy)} onClick={() => transition("draft")}>Restore draft</button> : null}{draft.status === "posted" ? <p><a href={draft.instagram_url} target="_blank" rel="noreferrer">Open Instagram post ↗</a></p> : null}</section>
       </aside>
     </div>
   </main>;
