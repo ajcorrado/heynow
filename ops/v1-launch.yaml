@@ -10,6 +10,10 @@ sprint:
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
   current_gate: G0_baseline_truth
+  last_checkpoint_at: "2026-10-05T20:31:00-06:00"
+  resume_from: >-
+    Finish G0 by verifying an authenticated production login and a clean build,
+    then implement the additive content_drafts migration and Publishing Desk.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -30,6 +34,30 @@ operating_policy:
     - brand_or_editorial_judgment
     - irreversible_external_action
     - production_go_no_go
+
+continuity:
+  checkpoint_after:
+    - every_external_write
+    - every_completed_work_item
+    - before_any_expected_usage_pause
+  checkpoint_contents:
+    - exact_branch_and_commit
+    - current_gate
+    - passed_evidence
+    - blockers
+    - next_single_action
+    - uncommitted_or_external_changes
+  pause_rule: >-
+    Stop at a committed boundary. Never leave a migration partly applied, a
+    deployment promotion in progress, or multiple agents writing the same file.
+  resume_rule: >-
+    Read ops/v1-launch.yaml and the open launch pull request first, verify the
+    recorded branch and deployment still match, then execute only resume_from.
+  scheduled_resume_prompt: >-
+    Resume the HeyNow Instagram V1 launch from ops/v1-launch.yaml. Reconcile the
+    open launch pull request and live Vercel/Supabase state, do not repeat passed
+    work, execute the next bounded item, checkpoint evidence, and stop for any
+    irreversible production action or Adam decision.
 
 scope:
   required:
@@ -65,7 +93,7 @@ work_items:
     permissions: read_only
     dependencies: []
     trigger: sprint_started
-    status: active
+    status: passed
     success_criteria:
       - current project health is known
       - migrations and exposed tables are inventoried
@@ -75,12 +103,17 @@ work_items:
       - Supabase project response
       - migration and table queries
       - policy and advisor evidence
-    evidence: []
-    risk: high
-    escalation: access failure or authorization weakness
-    decision_needed: null
-    next_action: complete read_only audit
-    updated_at: "2026-10-05T20:14:12-06:00"
+    evidence:
+      - Supabase project abxqhtwkabrblyrefsys ACTIVE_HEALTHY on Postgres 17.6
+      - 15 migrations verified through 20260911131753_protect_approved_event_facts
+      - all 29 public tables have RLS enabled
+      - one confirmed auth user maps to one admin_users row
+      - content_drafts exists, is empty, and is protected by admin-only RLS
+    risk: medium
+    escalation: signup configuration and free-tier availability before production
+    decision_needed: disable signup and upgrade Supabase before launch
+    next_action: extend content_drafts additively with constraints, audit, and RPCs
+    updated_at: "2026-10-05T20:31:00-06:00"
 
   - id: D1-REPO
     title: Verify repository and build baseline
@@ -88,7 +121,7 @@ work_items:
     permissions: read_only
     dependencies: []
     trigger: sprint_started
-    status: active
+    status: awaiting_evidence
     success_criteria:
       - current main tree and dependencies are inventoried
       - auth and editorial flows are traced
@@ -98,12 +131,16 @@ work_items:
       - GitHub tree and file evidence
       - package and route inspection
       - build output or explicit credential blocker
-    evidence: []
+    evidence:
+      - main SHA 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939 verified
+      - Next.js 16.3.4, React 19.3.0, Supabase JS 2.116.0 inventoried
+      - seven existing routes and current auth/data flows traced
+      - local clone unavailable because shell has no GitHub credential
     risk: medium
-    escalation: repository access prevents implementation
+    escalation: build must be proven through preview or an authenticated checkout
     decision_needed: null
-    next_action: complete read_only audit
-    updated_at: "2026-10-05T20:14:12-06:00"
+    next_action: obtain build evidence without exposing credentials
+    updated_at: "2026-10-05T20:31:00-06:00"
 
   - id: D1-VERCEL
     title: Verify production and rollback baseline
@@ -111,7 +148,7 @@ work_items:
     permissions: read_only
     dependencies: []
     trigger: sprint_started
-    status: active
+    status: passed
     success_criteria:
       - production deployment and SHA are verified
       - required environment variable names are known
@@ -121,12 +158,16 @@ work_items:
       - Vercel project and deployment responses
       - environment key inventory without values
       - runtime log evidence
-    evidence: []
+    evidence:
+      - production dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 READY at main SHA 2d51061e
+      - preview dpl_GSEYCNrbDZPakcDN1uE76ZfWZ3wo READY for launch branch
+      - required public Supabase environment variable names present
+      - rollback deployment dpl_7fZGkzhk9CcPN1hZsK2MitByxs3z identified
     risk: medium
-    escalation: production mismatch or missing configuration
+    escalation: authenticated and unauthorized runtime behavior remain untested
     decision_needed: null
-    next_action: complete read_only audit
-    updated_at: "2026-10-05T20:14:12-06:00"
+    next_action: run auth smoke tests before G1
+    updated_at: "2026-10-05T20:31:00-06:00"
 
   - id: D1-PRODUCT
     title: Freeze Publishing Desk contract
@@ -135,7 +176,7 @@ work_items:
     dependencies:
       - D1-REPO
     trigger: current_workflow_understood
-    status: active
+    status: passed
     success_criteria:
       - smallest event_to_post flow is documented
       - required fields and state transitions are frozen
@@ -143,12 +184,16 @@ work_items:
     validation:
       - current screen and data flow evidence
       - written Day 2 acceptance contract
-    evidence: []
+    evidence:
+      - event to draft to edit to ready to export to posted flow frozen
+      - content_drafts selected as the additive persistence base
+      - feed_single Instagram format and draft-ready-posted-skipped states frozen
+      - mobile copy-download-post-record handoff accepted as the release path
     risk: low
     escalation: material conflict with existing editorial policy
-    decision_needed: null
-    next_action: map current flow and propose bounded contract
-    updated_at: "2026-10-05T20:14:12-06:00"
+    decision_needed: Adam to confirm approval requirement and brand inputs
+    next_action: implement Day 2 migration and Publishing Desk
+    updated_at: "2026-10-05T20:31:00-06:00"
 
 attention_queue:
   - id: A1
@@ -179,10 +224,24 @@ attention_queue:
     consequence: Missing assets will not block engineering.
     deadline: "2026-10-07"
     context: Adam retains final brand judgment.
+  - id: A5
+    severity: required_before_production
+    decision: Upgrade Supabase from Free to Pro.
+    recommended_default: Upgrade before the Day 5 production gate.
+    consequence: Avoids inactivity auto-pause and enables leaked-password protection.
+    deadline: "2026-10-09"
+    context: Current project recovered normally, but Free-tier pausing is a release risk.
+  - id: A6
+    severity: required_before_production
+    decision: Disable public email signup in Supabase Authentication Providers.
+    recommended_default: Disable now; retain the existing confirmed admin.
+    consequence: Aligns Auth configuration with the one-admin internal product.
+    deadline: "2026-10-07"
+    context: Database RLS already blocks non-admin data access.
 
 gates:
   - id: G0_baseline_truth
-    status: active
+    status: awaiting_evidence
     criteria:
       - repository_sha_verified
       - production_sha_verified
@@ -191,7 +250,13 @@ gates:
       - current_build_result_or_explicit_blocker_recorded
       - rollback_deployment_identified
       - V1_scope_and_Day_2_contract_frozen
-    evidence: []
+    evidence:
+      - repository and production SHA match at 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
+      - Supabase project, migrations, schema, RLS, admin mapping, and content_drafts verified
+      - Vercel production, preview, environment names, and rollback deployment verified
+      - V1 scope and Day 2 Publishing Desk contract frozen
+      - clean local build blocked by unavailable shell GitHub credential
+      - actual authenticated production login still requires Adam session
     approved_by: null
     approved_at: null
 
