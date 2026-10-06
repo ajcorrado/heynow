@@ -10,11 +10,11 @@ sprint:
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
   current_gate: G0_baseline_truth
-  last_checkpoint_at: "2026-10-06T13:19:00-06:00"
+  last_checkpoint_at: "2026-10-06T13:25:00-06:00"
   resume_from: >-
-    Verify the new Publishing Desk preview build, then have Adam complete the
+    Review the additive Publishing Desk migration, then have Adam complete the
     one remaining G0 authenticated sign-in smoke test. Do not apply the migration
-    to production until its SQL and rollback compatibility have been reviewed.
+    to production until its SQL and rollback compatibility have been approved.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -141,7 +141,7 @@ work_items:
     escalation: build must be proven through preview or an authenticated checkout
     decision_needed: null
     next_action: verify the Publishing Desk preview build
-    updated_at: "2026-10-06T13:19:00-06:00"
+    updated_at: "2026-10-06T13:25:00-06:00"
 
   - id: D1-VERCEL
     title: Verify production and rollback baseline
@@ -219,11 +219,12 @@ work_items:
     evidence:
       - five pure validation tests pass locally
       - migration and Publishing Desk implementation committed to launch branch
+      - preview dpl_94Drd4epsvfU9o9f544TL3DUCvuR READY at ecf4b9ee; Next build and all eight pages passed in 7 seconds
       - no production deployment or database migration performed
     risk: medium
     escalation: migration requires review before any live application
     decision_needed: null
-    next_action: verify preview build and review migration SQL
+    next_action: review migration SQL, then plan controlled application
     updated_at: "2026-10-06T13:19:00-06:00"
 
 attention_queue:
