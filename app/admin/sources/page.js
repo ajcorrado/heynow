@@ -66,7 +66,7 @@ export default function SourcesPage() {
           <div className="brand-mark">HEY NOW</div>
           <h1>Source Registry</h1>
           <p className="muted">{rows.length} known sources · {rows.filter(r=>r.priority_tier==="P0").length} P0 · {rows.filter(r=>r.adapter_status==="active").length} active adapter</p>
-          <nav className="admin-nav"><Link href="/admin/events">Events</Link><Link className="active" href="/admin/sources">Sources</Link><Link href="/admin/review">Morning Review</Link></nav>
+          <nav className="admin-nav"><Link href="/admin/events">Events</Link><Link className="active" href="/admin/sources">Sources</Link><Link href="/admin/review">Morning Review</Link><Link href="/admin/publishing">Publishing</Link></nav>
         </div>
         <button className="button secondary" onClick={logout}>Sign out</button>
       </header>

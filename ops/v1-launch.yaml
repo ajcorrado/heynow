@@ -10,10 +10,11 @@ sprint:
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
   current_gate: G0_baseline_truth
-  last_checkpoint_at: "2026-10-05T20:31:00-06:00"
+  last_checkpoint_at: "2026-10-06T13:19:00-06:00"
   resume_from: >-
-    Finish G0 by verifying an authenticated production login and a clean build,
-    then implement the additive content_drafts migration and Publishing Desk.
+    Verify the new Publishing Desk preview build, then have Adam complete the
+    one remaining G0 authenticated sign-in smoke test. Do not apply the migration
+    to production until its SQL and rollback compatibility have been reviewed.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -121,7 +122,7 @@ work_items:
     permissions: read_only
     dependencies: []
     trigger: sprint_started
-    status: awaiting_evidence
+    status: passed
     success_criteria:
       - current main tree and dependencies are inventoried
       - auth and editorial flows are traced
@@ -135,12 +136,12 @@ work_items:
       - main SHA 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939 verified
       - Next.js 16.3.4, React 19.3.0, Supabase JS 2.116.0 inventoried
       - seven existing routes and current auth/data flows traced
-      - local clone unavailable because shell has no GitHub credential
+      - Vercel cloned launch head 0a082241 and completed next build, TypeScript, and all seven pages in 8 seconds
     risk: medium
     escalation: build must be proven through preview or an authenticated checkout
     decision_needed: null
-    next_action: obtain build evidence without exposing credentials
-    updated_at: "2026-10-05T20:31:00-06:00"
+    next_action: verify the Publishing Desk preview build
+    updated_at: "2026-10-06T13:19:00-06:00"
 
   - id: D1-VERCEL
     title: Verify production and rollback baseline
@@ -160,7 +161,7 @@ work_items:
       - runtime log evidence
     evidence:
       - production dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 READY at main SHA 2d51061e
-      - preview dpl_GSEYCNrbDZPakcDN1uE76ZfWZ3wo READY for launch branch
+      - preview dpl_DiNW33PfcXHy3YSty7FoNTwH358b READY at launch SHA 0a082241
       - required public Supabase environment variable names present
       - rollback deployment dpl_7fZGkzhk9CcPN1hZsK2MitByxs3z identified
     risk: medium
@@ -194,6 +195,36 @@ work_items:
     decision_needed: Adam to confirm approval requirement and brand inputs
     next_action: implement Day 2 migration and Publishing Desk
     updated_at: "2026-10-05T20:31:00-06:00"
+
+  - id: D2-PUBLISHING
+    title: Implement Publishing Desk foundation
+    owner: release_orchestrator
+    permissions: branch_only
+    dependencies:
+      - D1-PLATFORM
+      - D1-REPO
+      - D1-PRODUCT
+    trigger: baseline_build_proven
+    status: awaiting_evidence
+    success_criteria:
+      - additive migration defines immutable source snapshots and narrow RPCs
+      - draft-ready-posted-skipped state machine is enforced
+      - event and manual draft entry points exist
+      - editorial edits survive save and reload
+      - production and live database remain unchanged
+    validation:
+      - node publishing validation tests
+      - Vercel preview build
+      - controlled database migration review and later G1 test
+    evidence:
+      - five pure validation tests pass locally
+      - migration and Publishing Desk implementation committed to launch branch
+      - no production deployment or database migration performed
+    risk: medium
+    escalation: migration requires review before any live application
+    decision_needed: null
+    next_action: verify preview build and review migration SQL
+    updated_at: "2026-10-06T13:19:00-06:00"
 
 attention_queue:
   - id: A1
@@ -255,7 +286,7 @@ gates:
       - Supabase project, migrations, schema, RLS, admin mapping, and content_drafts verified
       - Vercel production, preview, environment names, and rollback deployment verified
       - V1 scope and Day 2 Publishing Desk contract frozen
-      - clean local build blocked by unavailable shell GitHub credential
+      - Vercel clean build passed at launch SHA 0a082241; TypeScript and all seven pages completed
       - actual authenticated production login still requires Adam session
     approved_by: null
     approved_at: null

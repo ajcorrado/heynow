@@ -1,0 +1,62 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "../../../lib/supabase";
+import { createManualDraft, listCities, listPublicationDrafts } from "../../../lib/publishing-client";
+
+const STATUS = ["", "draft", "ready", "posted", "skipped"];
+const titleFor = item => item.content?.headline || item.events?.title || "Untitled draft";
+const dateFor = value => value ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Denver" }).format(new Date(value)) : "—";
+
+export default function PublishingPage() {
+  const router = useRouter();
+  const [rows, setRows] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [status, setStatus] = useState("");
+  const [cityId, setCityId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function load(nextStatus = status) {
+    setLoading(true); setError("");
+    try {
+      const [drafts, cityRows] = await Promise.all([listPublicationDrafts(nextStatus), listCities()]);
+      setRows(drafts || []); setCities(cityRows || []); setCityId(current => current || cityRows?.[0]?.id || "");
+    } catch (caught) { setError(caught.message); }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) { router.replace("/login"); return; }
+      await load("");
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]);
+
+  const counts = useMemo(() => rows.reduce((all, row) => ({ ...all, [row.status]: (all[row.status] || 0) + 1 }), {}), [rows]);
+
+  async function filter(next) { setStatus(next); await load(next); }
+  async function createManual() {
+    if (!cityId || busy) return;
+    setBusy(true); setError("");
+    try { const id = await createManualDraft(cityId); router.push(`/admin/publishing/${id}`); }
+    catch (caught) { setError(caught.message); setBusy(false); }
+  }
+
+  if (loading) return <main className="page-shell">Loading Publishing Desk…</main>;
+  return <main className="page-shell">
+    <header className="topbar"><div><div className="brand-mark">HEY NOW</div><h1>Publishing Desk</h1><p className="muted">Prepare one Instagram post at a time. Posting stays manual.</p><nav className="admin-nav"><Link href="/admin/events">Events</Link><Link href="/admin/sources">Sources</Link><Link href="/admin/review">Morning Review</Link><Link className="active" href="/admin/publishing">Publishing</Link></nav></div></header>
+    {error ? <div className="error-card"><strong>Publishing Desk unavailable.</strong><br />{error}</div> : null}
+    <section className="publishing-toolbar card">
+      <div><h2>New manual draft</h2><p className="muted">Use this for editorial that is not attached to a registry event. Verify every fact before Ready.</p></div>
+      <div className="toolbar-actions"><select aria-label="City" value={cityId} onChange={event => setCityId(event.target.value)}>{cities.map(city => <option key={city.id} value={city.id}>{city.name}{city.state_region ? `, ${city.state_region}` : ""}</option>)}</select><button disabled={!cityId || busy} onClick={createManual}>{busy ? "Creating…" : "Create manual draft"}</button></div>
+    </section>
+    <div className="registry-toolbar"><div><strong>{rows.length}</strong> drafts</div><div className="segmented">{STATUS.map(item => <button className={status === item ? "active" : ""} key={item || "all"} onClick={() => filter(item)}>{item || "all"}{!status && item ? ` ${counts[item] || 0}` : ""}</button>)}</div></div>
+    {!rows.length ? <div className="empty-state"><h2>No {status || "publishing"} drafts</h2><p className="muted">Create one from a data-approved event or start a manual draft above.</p></div> : <div className="publishing-list">{rows.map(item => <Link className="publishing-row" href={`/admin/publishing/${item.id}`} key={item.id}><div><span className={`pill ${item.status === "ready" ? "good" : item.status === "skipped" ? "warn" : ""}`}>{item.status}</span><h2>{titleFor(item)}</h2><p className="muted">{item.events ? "Event draft" : "Manual draft"} · {item.cities?.name || "Unknown city"} · updated {dateFor(item.updated_at)}</p></div><span>Open →</span></Link>)}</div>}
+  </main>;
+}

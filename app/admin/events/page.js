@@ -151,7 +151,7 @@ export default function EventsPage() {
           <div className="brand-mark">HEY NOW</div>
           <h1>Event Registry</h1>
           <p className="muted">Canonical inventory · live provenance · editorial review</p>
-          <nav className="admin-nav"><Link className="active" href="/admin/events">Events</Link><Link href="/admin/sources">Sources</Link><Link href="/admin/review">Morning Review</Link></nav>
+          <nav className="admin-nav"><Link className="active" href="/admin/events">Events</Link><Link href="/admin/sources">Sources</Link><Link href="/admin/review">Morning Review</Link><Link href="/admin/publishing">Publishing</Link></nav>
         </div>
         <button className="button secondary" onClick={logout}>Sign out</button>
       </header>
