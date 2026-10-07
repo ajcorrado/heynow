@@ -14,10 +14,13 @@ sprint:
   last_checkpoint_at: "2026-10-07T08:36:00-06:00"
   resume_from: >-
     First run one authenticated manual Morning Sweep to verify incident I1:
-    both implemented sources must complete inside the 120-second wait, with the
-    overall run expected to be partial only because eight adapters remain
-    unsupported. Then resume the authenticated G2 browser editorial loop. Stop
-    before G3 brand/template decisions or any production deployment.
+    Visit El Paso and KTEP must both complete successfully, with the overall
+    run allowed to remain partial only because unsupported adapters remain.
+    Then reproduce the Publishing Desk issues reported by Adam against the
+    exact current preview: event-to-post discoverability, Save & mark ready
+    remaining disabled, and Return to draft visibility. Continue the G2
+    editorial loop only after those behaviors are understood. Do not begin
+    carousel implementation or production deployment.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -264,6 +267,26 @@ operational_incidents:
       succeed; an overall partial result is expected until unsupported adapters
       are implemented.
 
+
+  - id: I2
+    scope: publishing_desk
+    launch_blocking: true
+    status: awaiting_reproduction
+    diagnosis: null
+    evidence:
+      - event-derived draft creation exists from data-approved event detail
+      - Publishing Desk itself exposes manual draft creation but no event picker
+      - current branch code includes a ready-to-draft transition
+      - readiness requires headline, editorial take, caption, date, venue, and locality
+      - Adam observed Save & mark ready remaining disabled
+      - Adam did not observe Return to draft in the rendered experience
+    blockers:
+      - authenticated_preview_reproduction_required
+    next_action: >-
+      Verify the exact preview commit, reproduce all three reported behaviors,
+      distinguish UX discoverability from implementation defects, and fix only
+      the demonstrated underlying causes.
+
 attention_queue:
   - id: A1
     severity: resolved
@@ -307,6 +330,20 @@ attention_queue:
     consequence: Aligns Auth configuration with the one-admin internal product.
     deadline: "2026-10-07"
     context: Database RLS already blocks non-admin data access.
+
+
+  - id: A7
+    severity: required_before_G3
+    decision: Resolve whether multi-event carousel publishing is part of Instagram V1.
+    recommended_default: Finish the single-event G2 vertical slice before expanding the publishing model.
+    consequence: >-
+      Carousel support changes the publishing object model, event-selection
+      workflow, rendering model, and likely asset-generation requirements.
+    deadline: null
+    context: >-
+      Adam now envisions posts as custom carousels containing a series of
+      events. The original frozen Instagram V1 scope explicitly deferred
+      carousels and roundups.
 
 gates:
   - id: G0_baseline_truth
