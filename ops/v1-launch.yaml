@@ -9,13 +9,14 @@ sprint:
   base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
-  checkpoint_code_sha: cf032d4e103d93ca2411f5130a6eee023a595525
+  checkpoint_code_sha: 2ee4645fe1a0cb01eb21563686b70b357062e587
   current_gate: G2_editorial_loop
-  last_checkpoint_at: "2026-10-06T23:22:34-06:00"
+  last_checkpoint_at: "2026-10-07T08:36:00-06:00"
   resume_from: >-
-    Run the authenticated G2 browser flow against the live-connected preview:
-    create one event-derived draft and one manual draft, save and reload both,
-    verify idempotency and allowed state transitions, and record evidence. Stop
+    First run one authenticated manual Morning Sweep to verify incident I1:
+    both implemented sources must complete inside the 120-second wait, with the
+    overall run expected to be partial only because eight adapters remain
+    unsupported. Then resume the authenticated G2 browser editorial loop. Stop
     before G3 brand/template decisions or any production deployment.
   target_release_date: "2026-10-10"
   timezone: America/Denver
@@ -233,6 +234,35 @@ work_items:
     decision_needed: null
     next_action: run the authenticated G2 browser editorial loop
     updated_at: "2026-10-06T23:22:34-06:00"
+
+operational_incidents:
+  - id: I1
+    scope: morning_editorial_sweep
+    launch_blocking: false
+    status: mitigated_awaiting_verification
+    observed_run_id: 74f33d1f-afec-4e6a-9f81-ddac4f54f8a4
+    observed_at: "2026-10-07T08:30:04-06:00"
+    diagnosis: >-
+      The parent sweep aborted both implemented source requests at 105 seconds
+      and marked the run failed, but the child ingestions completed successfully
+      at 111 and 117 seconds.
+    evidence:
+      - parent run closed failed with no stale lock
+      - Visit El Paso child run succeeded with 120 observations, 2 created, and 118 matched
+      - KTEP child run succeeded with 120 observations, 4 created, and 116 matched
+      - both child runs reported zero ingestion errors
+      - no content drafts were created and no child run remains active
+    mitigation:
+      - source batch reduced from 120 to 100 events
+      - parent per-source wait increased from 105 to 120 seconds
+      - fix committed at 2ee4645fe1a0cb01eb21563686b70b357062e587
+      - heynow-sweep Edge Function version 7 deployed ACTIVE with JWT verification enabled
+    blockers:
+      - authenticated_admin_rerun_required
+    next_action: >-
+      Run one manual Morning Sweep and verify Visit El Paso and KTEP both
+      succeed; an overall partial result is expected until unsupported adapters
+      are implemented.
 
 attention_queue:
   - id: A1
