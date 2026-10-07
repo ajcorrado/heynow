@@ -4,9 +4,12 @@ const RUBRIC_VERSION = "morning-v1";
 const HORIZON_DAYS = 30;
 const MAX_SOURCES = 10;
 const MAX_SHORTLIST = 20;
-const SOURCE_LIMIT = 120;
+// Keep ingestion comfortably inside the parent Edge Function wall-clock budget.
+// Live runs showed 120-event child batches completing in 111-117 seconds,
+// after the former 105-second parent timeout had already labeled them failed.
+const SOURCE_LIMIT = 100;
 const SWEEP_LOCK_MS = 3 * 60 * 1000;
-const SOURCE_TIMEOUT_MS = 105 * 1000;
+const SOURCE_TIMEOUT_MS = 120 * 1000;
 const CORS_HEADERS = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers": "authorization, x-client-info, apikey, content-type, x-heynow-sweep-secret",
