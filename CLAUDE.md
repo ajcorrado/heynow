@@ -143,5 +143,3 @@ STATE UPDATE
 Optimize for continuity.
 
 Another competent coding agent should be able to clone the repository after your session, read the state files, and continue without needing your conversation history.
-
-Add coding agent continuity instructions
