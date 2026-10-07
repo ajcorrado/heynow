@@ -353,5 +353,3 @@ If records disagree, use this hierarchy:
 6. old issues, PR descriptions, project documents, and chat transcripts as historical evidence only.
 
 Do not overwrite a locked product decision merely because older code differs from it. Surface the conflict.
-
-Add model-neutral HeyNow project state
