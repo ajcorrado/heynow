@@ -9,12 +9,14 @@ sprint:
   base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
-  current_gate: G0_baseline_truth
-  last_checkpoint_at: "2026-10-06T13:31:00-06:00"
+  checkpoint_code_sha: cf032d4e103d93ca2411f5130a6eee023a595525
+  current_gate: G2_editorial_loop
+  last_checkpoint_at: "2026-10-06T23:22:34-06:00"
   resume_from: >-
-    Have Adam complete the one remaining G0 authenticated production sign-in
-    smoke test. Then request an explicit go/no-go before applying the reviewed
-    additive migration to the live database and running G1/G2 verification.
+    Run the authenticated G2 browser flow against the live-connected preview:
+    create one event-derived draft and one manual draft, save and reload both,
+    verify idempotency and allowed state transitions, and record evidence. Stop
+    before G3 brand/template decisions or any production deployment.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -199,42 +201,47 @@ work_items:
   - id: D2-PUBLISHING
     title: Implement Publishing Desk foundation
     owner: release_orchestrator
-    permissions: branch_only
+    permissions: controlled_live_schema
     dependencies:
       - D1-PLATFORM
       - D1-REPO
       - D1-PRODUCT
     trigger: baseline_build_proven
-    status: awaiting_evidence
+    status: passed
     success_criteria:
       - additive migration defines immutable source snapshots and narrow RPCs
       - draft-ready-posted-skipped state machine is enforced
       - event and manual draft entry points exist
       - editorial edits survive save and reload
-      - production and live database remain unchanged
+      - production app deployment remains unchanged and the live migration is additive
     validation:
       - node publishing validation tests
       - Vercel preview build
-      - controlled database migration review and later G1 test
+      - controlled database migration review and G1 transactional smoke tests
     evidence:
-      - nine validation and migration-contract tests pass locally
-      - schema and UI reviews completed; URL regex, atomic transitions, ready locking, channel isolation, provenance, idempotency, and mobile copy defects fixed
-      - preview dpl_G87qtLKP9XBSkZaRbZadcVMcG7Q9 READY at code SHA 46859516; Next build, TypeScript, and all eight pages passed in 6 seconds
-      - no production deployment or database migration performed
-    risk: medium
-    escalation: migration requires review before any live application
+      - nine validation and migration-contract tests pass
+      - schema and UI reviews passed; URL validation, atomic transitions, ready locking, channel isolation, provenance, idempotency, and mobile copy defects were fixed
+      - preview dpl_41UVDcGJ86SMR5S6KUJe6rDMn4CL READY at code SHA cf032d4e
+      - migration 20261007052110_instagram_publishing_desk applied successfully to Supabase abxqhtwkabrblyrefsys
+      - six expected columns, four narrow RPCs, audit-table RLS, and explicit grants verified
+      - transactional admin smoke created manual and event-derived drafts, saved revisions, traversed ready and posted states, verified source snapshots and audit rows, then rolled back
+      - simulated non-admin authenticated caller was denied; anon and PUBLIC cannot execute creation RPCs
+      - post-test committed counts remained zero drafts and zero audit rows; canonical events remained 714
+      - production app remains on SHA 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
+    risk: low
+    escalation: four expected SECURITY DEFINER advisor warnings are accepted because each RPC first asserts admin access and execution is revoked from anon and PUBLIC
     decision_needed: null
-    next_action: complete authenticated production login, then request live migration go-no-go
-    updated_at: "2026-10-06T13:19:00-06:00"
+    next_action: run the authenticated G2 browser editorial loop
+    updated_at: "2026-10-06T23:22:34-06:00"
 
 attention_queue:
   - id: A1
-    severity: required_day_1
-    decision: Confirm the email address that should be the sole authorized V1 admin.
+    severity: resolved
+    decision: The sole authorized V1 admin is the existing confirmed account.
     recommended_default: ajcorrado@gmail.com
-    consequence: Required to verify single_editor authorization.
+    consequence: Single-editor authorization and production sign-in are verified.
     deadline: "2026-10-06"
-    context: Existing application has internal email_password sign_in only.
+    context: One auth user maps to one admin_users row; Adam confirmed successful production sign-in.
   - id: A2
     severity: required_day_1
     decision: Confirm the Instagram handle for generated copy and assets.
@@ -273,7 +280,7 @@ attention_queue:
 
 gates:
   - id: G0_baseline_truth
-    status: awaiting_evidence
+    status: passed
     criteria:
       - repository_sha_verified
       - production_sha_verified
@@ -283,29 +290,35 @@ gates:
       - rollback_deployment_identified
       - V1_scope_and_Day_2_contract_frozen
     evidence:
-      - repository and production SHA match at 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
+      - production remains at 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939; launch code head reconciled at cf032d4e103d93ca2411f5130a6eee023a595525
       - Supabase project, migrations, schema, RLS, admin mapping, and content_drafts verified
       - Vercel production, preview, environment names, and rollback deployment verified
-      - V1 scope and Day 2 Publishing Desk contract frozen
-      - Vercel clean build passed at launch SHA 0a082241; TypeScript and all seven pages completed
-      - actual authenticated production login still requires Adam session
-    approved_by: null
-    approved_at: null
+      - V1 scope and Publishing Desk contract frozen
+      - launch preview dpl_41UVDcGJ86SMR5S6KUJe6rDMn4CL READY at cf032d4e
+      - Adam confirmed successful authenticated production sign-in
+    approved_by: adam
+    approved_at: "2026-10-06T23:16:40-06:00"
 
   - id: G1_data_and_access_safety
-    status: queued
+    status: passed
     criteria:
       - sole_authorized_admin_succeeds
       - anonymous_and_other_authenticated_users_fail
       - publication_data_RLS_verified
       - canonical_event_isolation_verified
       - additive_migration_and_rollback_compatibility_verified
-    evidence: []
-    approved_by: null
-    approved_at: null
+    evidence:
+      - additive migration 20261007052110_instagram_publishing_desk applied successfully
+      - authenticated SELECT is explicit; direct authenticated INSERT is denied; audit-table RLS is enabled
+      - anon and PUBLIC cannot execute creation RPCs; authenticated non-admin caller is rejected by private.assert_publishing_admin()
+      - admin transactional smoke passed manual and event-derived creation, revision updates, state transitions, source snapshots, and audit recording
+      - smoke transaction rolled back; committed draft and audit counts stayed zero and canonical events stayed 714
+      - independent migration review returned GO with no destructive statements or incompatible live references
+    approved_by: release_orchestrator
+    approved_at: "2026-10-06T23:22:34-06:00"
 
   - id: G2_editorial_loop
-    status: queued
+    status: in_progress
     criteria:
       - real_event_to_draft_to_edit_to_ready_to_posted_works
       - manual_draft_works
