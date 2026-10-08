@@ -168,7 +168,26 @@ summary { cursor: pointer; font-weight: 700; font-size: 13px; }
 .display-facts-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.85rem}
 .snapshot{max-height:390px;overflow:auto;white-space:pre-wrap;font-size:.78rem}
 .warning-card{padding:1rem;border:1px solid #d8a426;background:#fff7dc;border-radius:12px;margin-bottom:1rem}
+.section-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.selected-events{margin:0;padding:0;list-style:none;display:grid;gap:.65rem;counter-reset:slides}
+.selected-events li{counter-increment:slides;display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.85rem;border:1px solid #d7d2c8;background:#fff}
+.selected-events li>div:first-child{display:grid;gap:.2rem}
+.selected-events li>div:first-child:before{content:"Slide " counter(slides);color:#6c6a63;font-size:.72rem;text-transform:uppercase;letter-spacing:.08em}
+.selected-events li span,.candidate-event small{display:block;color:#6c6a63;font-size:.82rem}
+.order-actions{display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end}
+button.compact{width:auto;min-width:2.25rem;padding:.45rem .6rem}
+.candidate-events{display:grid;gap:.5rem;margin-top:.75rem;max-height:34rem;overflow-y:auto}
+button.candidate-event{width:100%;display:flex;align-items:center;justify-content:space-between;gap:1rem;text-align:left;padding:.8rem;background:#fff;color:inherit;border:1px solid #d7d2c8}
+button.candidate-event:hover:not(:disabled){border-color:#111;transform:none}
+button.candidate-event span{min-width:0}
+button.candidate-event b{white-space:nowrap}
+.readiness-list{margin:0;padding-left:1.2rem;display:grid;gap:.45rem;color:#8b382b}
+.success-text{color:#356b3b;font-weight:700}
+.review-approved,.review-pending{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.review-approved{color:#356b3b}.review-pending{color:#8b5e18}
 @media (max-width:760px){.publishing-editor-grid{grid-template-columns:1fr}.publishing-toolbar,.publishing-row{align-items:stretch;flex-direction:column}.display-facts-grid{grid-template-columns:1fr}}
+@media (max-width:720px){.selected-events li{align-items:flex-start;flex-direction:column}.order-actions{justify-content:flex-start}}
 
 .admin-nav{flex-wrap:wrap}
 @media (max-width:760px){.publishing-toolbar .segmented{display:flex;max-width:100%;overflow-x:auto}.publishing-toolbar .segmented button{flex:0 0 auto}}
+

@@ -1,6 +1,6 @@
 # HeyNow — Current Project State
 
-**Last reconciled:** 2026-10-07  
+**Last reconciled:** 2026-10-07 18:21 MT  
 **Canonical repository:** `ajcorrado/heynow`  
 **Production branch:** `main`  
 **Current active development branch:** `launch/instagram-v1`
@@ -90,7 +90,7 @@ Detailed authoritative sprint state:
 
 Current objective:
 
-Allow Adam to take a trustworthy HeyNow event through an editorial workflow into a finished Instagram package, publish manually, and record the resulting Instagram URL without modifying canonical event facts.
+Allow Adam to curate 3–8 upcoming HeyNow events into an ordered Instagram carousel package, publish it manually, and record the resulting Instagram URL without modifying canonical event facts.
 
 Current gate:
 
@@ -114,90 +114,52 @@ Production remains unchanged while this work is being tested.
 
 ## 5. Publishing Desk — current implementation
 
-The development branch currently contains:
+The development branch now treats a carousel—not a single event—as the Instagram V1 publication object:
 
 - `/admin/publishing`
 - `/admin/publishing/[id]`
-- event-derived draft creation
-- manual draft creation
-- editable headline
-- editable HeyNow Take
-- editable caption
-- editable display facts
+- carousel creation by city
+- selection, removal, and ordering of 3–8 upcoming active events
+- direct Event Registry → Add to carousel handoff
+- editable carousel title, cover kicker, and shared caption
+- immutable per-event source/fact snapshots
+- visible data-review state for every selected event
 - draft / ready / posted / skipped workflow
 - return from ready to draft
 - restore skipped draft
 - Instagram URL recording
-- immutable source/fact snapshot
+- explicit readiness checklist
 
-### Event → publication behavior
+### Event → carousel behavior
 
-Event-derived post creation currently starts from an individual Event Registry detail page.
+Carousel creation begins in the Publishing Desk. An Event Registry detail page can also seed that event into a newly created carousel.
 
-The `Create / open post` action is only displayed when that event's `data_review_state` is `approved`.
+Editors may assemble and save drafts from upcoming active events before data review is complete. This keeps editorial compilation usable while facts are being reviewed.
 
-The Publishing Desk itself currently exposes manual-draft creation but does not expose an event picker or obvious event-selection workflow.
-
-This creates a discoverability/product-flow problem even though event-derived draft creation technically exists.
+Moving a carousel to `ready` remains blocked until all selected events are active and data-approved. Publishing content never mutates canonical event facts or provenance.
 
 ### Ready validation
 
-`Save & mark ready` remains disabled until all required readiness fields are present:
+`Save & mark ready` remains disabled until:
 
-- headline
-- editorial take
+- carousel title
 - caption
-- date
-- venue
-- locality
+- 3–8 events are selected
+- every selected event is data-approved
 
-Time, price, and age can use explicit fallback values.
-
-The current UI only gives a generic instruction to complete required fields rather than clearly identifying each blocking field. Reproduce Adam's reported issue before changing validation.
+The editor displays each blocking condition explicitly. `Save draft` remains independently available.
 
 ### Return to draft
 
-Current branch code includes:
-
-`ready → draft`
-
-and:
-
-`skipped → draft`
-
-If Adam does not see Return to Draft in the rendered app, verify:
-
-- which commit the preview is running;
-- whether the draft is actually in `ready`;
-- whether the deployed preview predates the relevant code.
-
-Do not reimplement functionality that already exists until this discrepancy is explained.
+`ready → draft` and `skipped → draft` are supported. The Return to Draft control is displayed when status is `ready`.
 
 ---
 
-## 6. New product feedback requiring reconciliation
+## 6. Carousel scope decision
 
-Adam supplied the following feedback after the original Instagram V1 scope was frozen:
+Adam explicitly chose carousel-only for Instagram V1 on October 7. This supersedes the earlier `feed_single` assumption and the prior deferral of carousels/roundups.
 
-1. The relationship between Events and post creation is not obvious enough.
-2. Posts should ultimately support a custom carousel containing a series of events.
-3. `Save & mark ready` appeared permanently disabled.
-4. Adam did not see a Return to Draft action.
-
-Important scope conflict:
-
-The existing `ops/v1-launch.yaml` explicitly deferred **carousels and roundups** from the original single-post V1.
-
-Adam's newer carousel direction therefore supersedes or modifies an older assumption, but the sprint scope has not yet been formally reconciled.
-
-Do not silently expand the data model or publishing implementation into multi-event carousels.
-
-First determine whether:
-
-- carousel publishing now belongs in Instagram V1; or
-- V1 should finish the single-event vertical slice before carousel work starts.
-
-This is a product-owner decision.
+Legacy single-event rows and RPCs remain intact for data preservation, but the V1 Publishing Desk lists and creates carousel drafts only.
 
 ---
 
@@ -258,31 +220,15 @@ Unless `ops/v1-launch.yaml` has been updated more recently, use this order:
 
 Verify branch, preview deployment, Supabase migration state, and authenticated user experience.
 
-### P1 — Complete G2 editorial loop
+### P1 — Verify carousel editorial loop
 
-Exercise a real event through:
+Exercise:
 
-`event → publication draft → edit → save → ready`
+`create carousel → select/reorder 3–8 events → save/reload → resolve review blockers → ready → return to draft`
 
-Also exercise:
+### P2 — Build carousel asset rendering
 
-`manual draft → edit → save`
-
-Confirm save/reload and idempotency behavior.
-
-### P2 — Reproduce Adam's Publishing Desk feedback
-
-Specifically test:
-
-- discovering how to create a post from an event;
-- why `Save & mark ready` stays disabled;
-- whether Return to Draft is rendered once status is `ready`.
-
-Fix the underlying UX/implementation problem rather than merely the symptom.
-
-### P3 — Resolve carousel scope
-
-Do not implement a multi-event carousel until the product scope decision is explicit.
+Generate and preview the cover plus one 1080×1350 slide per selected event, then support downloading the ordered image set for manual Instagram posting.
 
 ---
 
@@ -353,3 +299,4 @@ If records disagree, use this hierarchy:
 6. old issues, PR descriptions, project documents, and chat transcripts as historical evidence only.
 
 Do not overwrite a locked product decision merely because older code differs from it. Surface the conflict.
+

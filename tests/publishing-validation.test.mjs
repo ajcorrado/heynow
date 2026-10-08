@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canTransition, isInstagramUrl, normalizeContent, readinessErrors, transitionErrors } from "../lib/publishing-validation.mjs";
+import { canTransition, carouselReadinessErrors, isInstagramUrl, normalizeContent, readinessErrors, transitionErrors } from "../lib/publishing-validation.mjs";
 
 const ready = { headline: "Tonight downtown", editorial_take: "Worth leaving the house for.", caption: "Tonight downtown.", display_facts: { date: "Oct 6", venue: "Plaza Theatre", locality: "El Paso" } };
 
@@ -43,3 +43,11 @@ test("enforces editorial length boundaries", () => {
   assert.ok(readinessErrors({ ...ready, editorial_take: "x".repeat(501) }).editorial_take);
   assert.ok(readinessErrors({ ...ready, caption: "x".repeat(2201) }).caption);
 });
+
+test("carousel readiness requires title, caption, and 3 to 8 events", () => {
+  assert.deepEqual(Object.keys(carouselReadinessErrors({}, 0)).sort(), ["caption", "events", "title"]);
+  assert.deepEqual(carouselReadinessErrors({ title: "Weekend picks", caption: "Three things worth leaving home for." }, 3), {});
+  assert.equal(carouselReadinessErrors({ title: "Weekend picks", caption: "Caption" }, 9).events, "Choose no more than 8 events.");
+  assert.equal(carouselReadinessErrors({ title: "Weekend picks", caption: "Caption" }, 3, 2).approval, "2 selected events still need data review.");
+});
+

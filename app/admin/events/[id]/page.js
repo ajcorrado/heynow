@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
-import { createDraftFromEvent } from "../../../../lib/publishing-client";
 
 const REVIEW_STAGES = [
   { column: "data_review_state", label: "Data review", help: "Are the canonical facts trustworthy?" },
@@ -108,18 +107,6 @@ export default function EventDetailPage() {
     setBusy("");
   }
 
-  async function openPublishingDraft() {
-    if (busy) return;
-    setBusy("publishing"); setError(""); setMessage("");
-    try {
-      const draftId = await createDraftFromEvent(id);
-      router.push(`/admin/publishing/${draftId}`);
-    } catch (caught) {
-      setError(caught.message);
-      setBusy("");
-    }
-  }
-
   if (error && !event) return <main className="page-shell"><Link href="/admin/events">← Event Registry</Link><div className="error-card">{error}</div></main>;
   if (!event) return <main className="page-shell">Loading event…</main>;
 
@@ -143,7 +130,7 @@ export default function EventDetailPage() {
           <p className="event-lede">{fmtDate(event.start_at)} · {venue?.name || "Venue unassigned"}{venue?.locality ? ` · ${venue.locality}` : ""}</p>
           <div><StatePill value={event.status} />{categories.map(item => <span className="pill" key={item.id}>{item.name}</span>)}</div>
         </div>
-        <div className="detail-links">{editorial.data_review_state === "approved" ? <button disabled={Boolean(busy)} onClick={openPublishingDraft}>{busy === "publishing" ? "Opening…" : "Create / open post"}</button> : null}{event.official_url ? <a className="button secondary" href={event.official_url} target="_blank" rel="noreferrer">Official page ↗</a> : null}{event.ticket_url ? <a className="button" href={event.ticket_url} target="_blank" rel="noreferrer">Tickets ↗</a> : null}</div>
+        <div className="detail-links"><Link className="button" href={`/admin/publishing?event=${id}`}>Add to carousel</Link>{event.official_url ? <a className="button secondary" href={event.official_url} target="_blank" rel="noreferrer">Official page ↗</a> : null}{event.ticket_url ? <a className="button" href={event.ticket_url} target="_blank" rel="noreferrer">Tickets ↗</a> : null}</div>
       </header>
 
       {error ? <div className="error-card">{error}</div> : null}
@@ -203,3 +190,4 @@ export default function EventDetailPage() {
     </main>
   );
 }
+

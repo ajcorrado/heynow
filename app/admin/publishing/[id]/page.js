@@ -2,21 +2,23 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
-import { loadPublicationDraft, saveDraft, transitionDraft } from "../../../../lib/publishing-client";
-import { normalizeContent, readinessErrors, transitionErrors } from "../../../../lib/publishing-validation.mjs";
+import { listCarouselCandidates, loadPublicationDraft, saveCarousel, transitionCarousel } from "../../../../lib/publishing-client";
+import { carouselReadinessErrors, isInstagramUrl, normalizeCarouselContent } from "../../../../lib/publishing-validation.mjs";
 
-const EMPTY = normalizeContent({});
-const field = (content, key, value) => ({ ...content, [key]: value });
-const fact = (content, key, value) => ({ ...content, display_facts: { ...content.display_facts, [key]: value } });
+const EMPTY = normalizeCarouselContent({});
+const formatDate = value => value ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Denver" }).format(new Date(value)) : "Date TBA";
 
 export default function PublishingEditorPage() {
   const { id } = useParams();
   const router = useRouter();
   const [draft, setDraft] = useState(null);
   const [content, setContent] = useState(EMPTY);
+  const [candidates, setCandidates] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [instagramUrl, setInstagramUrl] = useState("");
+  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -26,19 +28,71 @@ export default function PublishingEditorPage() {
     if (!data.session) { router.replace("/login"); return; }
     try {
       const row = await loadPublicationDraft(id);
-      if (!row) { setError("Draft not found."); return; }
-      setDraft(row); setContent(normalizeContent(row.content)); setInstagramUrl(row.instagram_url || "");
+      if (!row) { setError("Carousel not found."); return; }
+      const eventRows = [...(row.content_draft_events || [])].sort((a, b) => a.position - b.position);
+      const candidateRows = await listCarouselCandidates(row.city_id);
+      setDraft(row);
+      setContent(normalizeCarouselContent(row.content));
+      const existingIds = eventRows.map(item => item.event_id);
+      const seedEvent = new URLSearchParams(window.location.search).get("event");
+      setSelectedIds(seedEvent && candidateRows?.some(item => item.event_id === seedEvent) && !existingIds.includes(seedEvent) && existingIds.length < 8 ? [...existingIds, seedEvent] : existingIds);
+      setCandidates(candidateRows || []);
+      setInstagramUrl(row.instagram_url || "");
     } catch (caught) { setError(caught.message); }
   }, [id, router]);
+
   useEffect(() => { load(); }, [load]);
 
+  const candidateById = useMemo(() => new Map(candidates.map(item => [item.event_id, item])), [candidates]);
+  const currentById = useMemo(() => new Map((draft?.content_draft_events || []).map(item => [item.event_id, item])), [draft]);
+  const selected = selectedIds.map(eventId => {
+    const candidate = candidateById.get(eventId);
+    const current = currentById.get(eventId);
+    return candidate || {
+      event_id: eventId,
+      title: current?.fact_snapshot?.title || current?.events?.title || "Unavailable event",
+      start_at: current?.fact_snapshot?.start_at || current?.events?.start_at,
+      venue: current?.fact_snapshot?.venue || "Venue TBA",
+      locality: current?.fact_snapshot?.locality || "",
+      data_review_state: current?.fact_snapshot?.data_review_state || "pending",
+    };
+  });
+  const visibleCandidates = candidates.filter(item => {
+    if (selectedIds.includes(item.event_id)) return false;
+    const needle = search.trim().toLowerCase();
+    return !needle || `${item.title} ${item.venue || ""} ${item.locality || ""}`.toLowerCase().includes(needle);
+  });
+  const readyIssues = carouselReadinessErrors(content, selectedIds.length, selected.filter(item => item.data_review_state !== "approved").length);
+  const locked = draft?.status !== "draft";
+
+  function addEvent(eventId) {
+    if (locked || selectedIds.length >= 8 || selectedIds.includes(eventId)) return;
+    setSelectedIds(current => [...current, eventId]);
+  }
+
+  function removeEvent(eventId) {
+    if (!locked) setSelectedIds(current => current.filter(item => item !== eventId));
+  }
+
+  function moveEvent(index, direction) {
+    if (locked) return;
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= selectedIds.length) return;
+    setSelectedIds(current => {
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  }
+
   async function save() {
-    if (!draft || busy || draft.status === "posted") return false;
+    if (!draft || busy || locked) return false;
     setBusy("save"); setError(""); setMessage("");
     try {
-      const next = normalizeContent(content);
-      const revision = await saveDraft(draft.id, next, draft.revision);
-      setDraft(current => ({ ...current, content: next, revision })); setContent(next); setMessage("Draft saved."); setBusy(""); return true;
+      const next = normalizeCarouselContent(content);
+      const revision = await saveCarousel(draft.id, next, selectedIds, draft.revision);
+      setDraft(current => ({ ...current, content: next, revision }));
+      setContent(next); setMessage("Carousel saved."); setBusy(""); return true;
     } catch (caught) {
       setError(caught.message);
       if (caught.code === "40001" || caught.message?.includes("changed elsewhere")) await load();
@@ -48,15 +102,17 @@ export default function PublishingEditorPage() {
 
   async function transition(target) {
     if (!draft || busy) return;
-    const clientErrors = transitionErrors(draft.status, target, content, { instagram_url: instagramUrl });
-    if (Object.keys(clientErrors).length) { setError(Object.values(clientErrors)[0]); return; }
+    if (target === "ready" && Object.keys(readyIssues).length) { setError(Object.values(readyIssues)[0]); return; }
+    if (target === "posted" && !isInstagramUrl(instagramUrl)) { setError("Enter a valid HTTPS instagram.com URL."); return; }
     setBusy(target); setError(""); setMessage("");
     try {
-      const next = draft.status === "draft" ? normalizeContent(content) : null;
-      const revision = await transitionDraft(draft.id, target, { instagram_url: instagramUrl }, draft.revision, next);
-      if (next) setContent(next);
+      const editable = draft.status === "draft";
+      const next = editable ? normalizeCarouselContent(content) : null;
+      const revision = await transitionCarousel(draft.id, target, { instagram_url: instagramUrl }, draft.revision, next, editable ? selectedIds : null);
       setDraft(current => ({ ...current, content: next || current.content, status: target, revision, instagram_url: target === "posted" ? instagramUrl : current.instagram_url }));
-      setMessage(target === "posted" ? "Instagram post recorded." : `Draft moved to ${target}.`); setBusy("");
+      if (next) setContent(next);
+      setMessage(target === "posted" ? "Instagram post recorded." : `Carousel moved to ${target}.`);
+      setBusy("");
     } catch (caught) {
       setError(caught.message);
       if (caught.code === "40001" || caught.message?.includes("changed elsewhere")) await load();
@@ -66,37 +122,42 @@ export default function PublishingEditorPage() {
 
   async function copyCaption() {
     setError(""); setMessage("");
-    try {
-      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(content.caption);
-      else {
-        const area = document.createElement("textarea"); area.value = content.caption; area.style.position = "fixed"; area.style.opacity = "0";
-        document.body.appendChild(area); area.select();
-        if (!document.execCommand("copy")) throw new Error("Copy was blocked by this browser.");
-        document.body.removeChild(area);
-      }
-      setMessage("Caption copied.");
-    } catch (caught) { setError(caught.message || "Could not copy the caption."); }
+    try { await navigator.clipboard.writeText(content.caption); setMessage("Caption copied."); }
+    catch { setError("Could not copy the caption."); }
   }
 
-  if (!draft && !error) return <main className="page-shell">Loading draft…</main>;
+  if (!draft && !error) return <main className="page-shell">Loading carousel…</main>;
   if (!draft) return <main className="page-shell"><Link href="/admin/publishing">← Publishing Desk</Link><div className="error-card">{error}</div></main>;
-  const locked = draft.status !== "draft";
-  const readyIssues = readinessErrors(content);
+
   return <main className="page-shell publishing-editor">
-    <div className="detail-breadcrumbs"><Link href="/admin/publishing">← Publishing Desk</Link>{draft.event_id ? <Link href={`/admin/events/${draft.event_id}`}>Source event</Link> : null}</div>
-    <header className="detail-header"><div><div className="brand-mark">HEY NOW</div><h1>{content.headline || "Untitled draft"}</h1><p className="muted">Instagram feed post · revision {draft.revision}</p></div><span className={`pill ${draft.status === "ready" ? "good" : ""}`}>{draft.status}</span></header>
-    {draft.event_id ? null : <div className="warning-card"><strong>Manual draft.</strong> The facts below have not been inherited from a data-approved registry event.</div>}
+    <div className="detail-breadcrumbs"><Link href="/admin/publishing">← Publishing Desk</Link></div>
+    <header className="detail-header"><div><div className="brand-mark">HEY NOW</div><h1>{content.title || "Untitled carousel"}</h1><p className="muted">Instagram carousel · {selectedIds.length} events · revision {draft.revision}</p></div><span className={`pill ${draft.status === "ready" ? "good" : ""}`}>{draft.status}</span></header>
     {error ? <div className="error-card">{error}</div> : null}{message ? <div className="success-card">{message}</div> : null}
+
     <div className="publishing-editor-grid">
-      <section className="card publishing-form"><h2>Editorial package</h2>
-        <label><span>Headline <small>{content.headline.length}/90</small></span><input disabled={locked} value={content.headline} onChange={e => setContent(field(content, "headline", e.target.value))} maxLength="90" /></label>
-        <label><span>HeyNow take <small>{content.editorial_take.length}/500</small></span><textarea disabled={locked} rows="4" value={content.editorial_take} onChange={e => setContent(field(content, "editorial_take", e.target.value))} maxLength="500" /></label>
-        <label><span>Instagram caption <small>{content.caption.length}/2200</small></span><textarea disabled={locked} rows="10" value={content.caption} onChange={e => setContent(field(content, "caption", e.target.value))} maxLength="2200" /></label><button className="secondary" disabled={!content.caption} onClick={copyCaption}>Copy caption</button>
-        <h3>Display facts</h3><div className="display-facts-grid">{["date","time","venue","locality","price","age"].map(key => <label key={key}><span>{key}</span><input disabled={locked} value={content.display_facts[key]} onChange={e => setContent(fact(content, key, e.target.value))} /></label>)}</div>
-        {!locked ? <button disabled={Boolean(busy)} onClick={save}>{busy === "save" ? "Saving…" : "Save draft"}</button> : null}
+      <section>
+        <section className="card publishing-form"><h2>Carousel package</h2>
+          <label><span>Carousel title <small>{content.title.length}/90</small></span><input disabled={locked} value={content.title} onChange={event => setContent({ ...content, title: event.target.value })} maxLength="90" placeholder="This weekend in El Paso" /></label>
+          <label><span>Cover kicker</span><input disabled={locked} value={content.cover_kicker} onChange={event => setContent({ ...content, cover_kicker: event.target.value })} placeholder="HEY NOW PICKS" /></label>
+          <label><span>Instagram caption <small>{content.caption.length}/2200</small></span><textarea disabled={locked} rows="9" value={content.caption} onChange={event => setContent({ ...content, caption: event.target.value })} maxLength="2200" /></label>
+          <button className="secondary" disabled={!content.caption} onClick={copyCaption}>Copy caption</button>
+        </section>
+
+        <section className="card carousel-events"><div className="section-heading"><div><h2>Carousel order</h2><p className="muted">Cover first, then one slide for each event.</p></div><strong>{selectedIds.length}/8</strong></div>
+          {!selected.length ? <p className="muted">No events selected yet.</p> : <ol className="selected-events">{selected.map((item, index) => <li key={item.event_id}><div><strong>{item.title}</strong><span>{formatDate(item.start_at)} · {item.venue || "Venue TBA"}{item.locality ? ` · ${item.locality}` : ""}</span><small className={item.data_review_state === "approved" ? "review-approved" : "review-pending"}>{item.data_review_state === "approved" ? "Data approved" : "Needs data review before Ready"}</small></div>{!locked ? <div className="order-actions"><button className="secondary compact" disabled={index === 0} onClick={() => moveEvent(index, -1)} aria-label={`Move ${item.title} up`}>↑</button><button className="secondary compact" disabled={index === selected.length - 1} onClick={() => moveEvent(index, 1)} aria-label={`Move ${item.title} down`}>↓</button><button className="secondary compact" onClick={() => removeEvent(item.event_id)}>Remove</button></div> : null}</li>)}</ol>}
+        </section>
+
+        {!locked ? <section className="card event-picker"><h2>Add upcoming events</h2><p className="muted">You can draft with pending events; every selection must be data-approved before Ready.</p><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search event or venue" /><div className="candidate-events">{visibleCandidates.slice(0, 80).map(item => <button className="candidate-event" key={item.event_id} disabled={selectedIds.length >= 8} onClick={() => addEvent(item.event_id)}><span><strong>{item.title}</strong><small>{formatDate(item.start_at)} · {item.venue || "Venue TBA"} · {item.data_review_state === "approved" ? "approved" : "needs review"}</small></span><b>+ Add</b></button>)}</div>{!visibleCandidates.length ? <p className="muted">No matching upcoming events.</p> : null}</section> : null}
       </section>
-      <aside><section className="card"><h2>Locked source snapshot</h2><p className="muted">This captured evidence never changes when you edit the post.</p>{draft.fact_snapshot?.sources?.length ? <div className="snapshot-sources">{draft.fact_snapshot.sources.map((source, index) => <p key={`${source.url || source.name}-${index}`}><strong>{source.name || "Source"}</strong>{source.url ? <><br /><a href={source.url} target="_blank" rel="noreferrer">Open evidence ↗</a></> : null}</p>)}</div> : null}<details><summary>All captured facts</summary><pre className="snapshot">{JSON.stringify(draft.fact_snapshot, null, 2)}</pre></details></section>
-        <section className="card"><h2>Workflow</h2>{draft.status === "draft" ? <><button disabled={Boolean(busy) || Object.keys(readyIssues).length > 0} onClick={() => transition("ready")}>Save & mark ready</button> <button className="secondary" disabled={Boolean(busy)} onClick={() => transition("skipped")}>Save & skip</button>{Object.keys(readyIssues).length ? <p className="sub">Complete the required editorial fields to mark Ready.</p> : null}</> : null}{draft.status === "ready" ? <><label><span>Instagram post URL</span><input type="url" inputMode="url" autoCapitalize="none" placeholder="https://www.instagram.com/p/…" value={instagramUrl} onChange={e => setInstagramUrl(e.target.value)} /></label><button disabled={Boolean(busy)} onClick={() => transition("posted")}>Record as posted</button> <button className="secondary" disabled={Boolean(busy)} onClick={() => transition("draft")}>Return to draft</button> <button className="secondary" disabled={Boolean(busy)} onClick={() => transition("skipped")}>Skip</button></> : null}{draft.status === "skipped" ? <button disabled={Boolean(busy)} onClick={() => transition("draft")}>Restore draft</button> : null}{draft.status === "posted" ? <p><a href={draft.instagram_url} target="_blank" rel="noreferrer">Open Instagram post ↗</a></p> : null}</section>
+
+      <aside>
+        <section className="card"><h2>Ready checklist</h2>{Object.keys(readyIssues).length ? <ul className="readiness-list">{Object.values(readyIssues).map(issue => <li key={issue}>{issue}</li>)}</ul> : <p className="success-text">Ready to mark for publishing.</p>}</section>
+        <section className="card"><h2>Workflow</h2>
+          {draft.status === "draft" ? <><button disabled={Boolean(busy)} onClick={save}>{busy === "save" ? "Saving…" : "Save draft"}</button><button disabled={Boolean(busy) || Object.keys(readyIssues).length > 0} onClick={() => transition("ready")}>{busy === "ready" ? "Saving…" : "Save & mark ready"}</button><button className="secondary" disabled={Boolean(busy)} onClick={() => transition("skipped")}>Save & skip</button></> : null}
+          {draft.status === "ready" ? <><label><span>Instagram post URL</span><input type="url" inputMode="url" autoCapitalize="none" placeholder="https://www.instagram.com/p/…" value={instagramUrl} onChange={event => setInstagramUrl(event.target.value)} /></label><button disabled={Boolean(busy)} onClick={() => transition("posted")}>Record as posted</button><button className="secondary" disabled={Boolean(busy)} onClick={() => transition("draft")}>Return to draft</button><button className="secondary" disabled={Boolean(busy)} onClick={() => transition("skipped")}>Skip</button></> : null}
+          {draft.status === "skipped" ? <button disabled={Boolean(busy)} onClick={() => transition("draft")}>Restore draft</button> : null}
+          {draft.status === "posted" ? <p><a href={draft.instagram_url} target="_blank" rel="noreferrer">Open Instagram post ↗</a></p> : null}
+        </section>
       </aside>
     </div>
   </main>;
