@@ -1,26 +1,25 @@
 sprint:
   id: heynow-instagram-v1-2026-10
   objective: >-
-    Let Adam turn a trustworthy event into one finished 1080x1350 Instagram
-    feed asset and caption, publish it manually from his phone, and record the
-    live Instagram URL without changing canonical event facts.
-  scope_frozen_at: "2026-10-05T20:14:12-06:00"
+    Let Adam curate 3–8 upcoming events into one ordered Instagram carousel
+    package and shared caption, publish it manually from his phone, and record
+    the live Instagram URL without changing canonical event facts.
+  scope_frozen_at: "2026-10-07T18:21:00-06:00"
   branch: launch/instagram-v1
   base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
-  checkpoint_code_sha: 2ee4645fe1a0cb01eb21563686b70b357062e587
+  checkpoint_code_sha: 94d806e4efd15558a437ae319a40a759c38a77d5
   current_gate: G2_editorial_loop
-  last_checkpoint_at: "2026-10-07T08:36:00-06:00"
+  last_checkpoint_at: "2026-10-09T08:35:00-06:00"
   resume_from: >-
-    First run one authenticated manual Morning Sweep to verify incident I1:
-    Visit El Paso and KTEP must both complete successfully, with the overall
-    run allowed to remain partial only because unsupported adapters remain.
-    Then reproduce the Publishing Desk issues reported by Adam against the
-    exact current preview: event-to-post discoverability, Save & mark ready
-    remaining disabled, and Return to draft visibility. Continue the G2
-    editorial loop only after those behaviors are understood. Do not begin
-    carousel implementation or production deployment.
+    Run one authenticated G2 browser loop against preview deployment
+    dpl_5bQoDZdDyRE9Sz4XjtnQmPCRNc9R at code SHA 94d806e4: create a carousel,
+    select and reorder 3–8 upcoming events, save and reload, verify explicit
+    readiness blockers for pending events, approve three selected events
+    through the Event Registry, mark the carousel ready, and return it to
+    draft. Do not begin asset rendering or production deployment until this
+    loop passes.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -69,12 +68,13 @@ continuity:
 scope:
   required:
     - existing_admin_sign_in
-    - create_publication_draft_from_event
-    - create_manual_publication_draft
-    - edit_headline_take_caption_and_display_facts
+    - create_instagram_carousel_by_city
+    - select_remove_and_order_three_to_eight_events
+    - seed_carousel_from_event_registry
+    - edit_carousel_title_cover_kicker_and_caption
     - preserve_canonical_event_and_source_evidence
-    - generate_1080x1350_feed_asset
-    - preview_and_download_asset
+    - generate_ordered_1080x1350_carousel_assets
+    - preview_and_download_ordered_assets
     - copy_caption_on_mobile
     - move_draft_to_ready_to_posted_or_skipped
     - record_posted_timestamp_and_instagram_url
@@ -86,7 +86,7 @@ scope:
     - user_submissions_saves_comments_or_feeds
     - direct_instagram_api_publishing
     - scheduled_social_publishing
-    - carousels_and_roundups
+    - single_event_feed_post_workflow
     - unfinished_source_adapters
     - ten_source_ingestion_acceptance
     - automated_ingestion_scheduling
@@ -242,7 +242,7 @@ operational_incidents:
   - id: I1
     scope: morning_editorial_sweep
     launch_blocking: false
-    status: mitigated_awaiting_verification
+    status: verified
     observed_run_id: 74f33d1f-afec-4e6a-9f81-ddac4f54f8a4
     observed_at: "2026-10-07T08:30:04-06:00"
     diagnosis: >-
@@ -255,37 +255,34 @@ operational_incidents:
       - KTEP child run succeeded with 120 observations, 4 created, and 116 matched
       - both child runs reported zero ingestion errors
       - no content drafts were created and no child run remains active
+      - authenticated rerun completed with both implemented sources successful
+      - rerun reported 0 failed sources, 8 unsupported sources, and 251 eligible events
     mitigation:
       - source batch reduced from 120 to 100 events
       - parent per-source wait increased from 105 to 120 seconds
       - fix committed at 2ee4645fe1a0cb01eb21563686b70b357062e587
       - heynow-sweep Edge Function version 7 deployed ACTIVE with JWT verification enabled
-    blockers:
-      - authenticated_admin_rerun_required
-    next_action: >-
-      Run one manual Morning Sweep and verify Visit El Paso and KTEP both
-      succeed; an overall partial result is expected until unsupported adapters
-      are implemented.
+    blockers: []
+    next_action: none
 
 
   - id: I2
     scope: publishing_desk
     launch_blocking: true
-    status: awaiting_reproduction
-    diagnosis: null
+    status: resolved_by_product_reframe
+    diagnosis: >-
+      The deployed editor correctly implemented the original single-event
+      contract, but that contract did not match Adam's carousel-first workflow.
+      Save worked; Ready was blocked by unnamed missing fields, and Return to
+      draft was hidden because the record had never reached ready.
     evidence:
-      - event-derived draft creation exists from data-approved event detail
-      - Publishing Desk itself exposes manual draft creation but no event picker
-      - current branch code includes a ready-to-draft transition
-      - readiness requires headline, editorial take, caption, date, venue, and locality
-      - Adam observed Save & mark ready remaining disabled
-      - Adam did not observe Return to draft in the rendered experience
-    blockers:
-      - authenticated_preview_reproduction_required
+      - reported draft f60dcc8b-351b-4383-873c-1fc79a44b240 saved twice and remained draft
+      - missing caption, date, and venue explained the disabled Ready action
+      - Adam explicitly chose carousel-only for Instagram V1
+      - carousel editor now exposes event selection, order, readiness blockers, and Return to draft
+    blockers: []
     next_action: >-
-      Verify the exact preview commit, reproduce all three reported behaviors,
-      distinguish UX discoverability from implementation defects, and fix only
-      the demonstrated underlying causes.
+      Complete the authenticated carousel G2 browser loop.
 
 attention_queue:
   - id: A1
@@ -296,12 +293,12 @@ attention_queue:
     deadline: "2026-10-06"
     context: One auth user maps to one admin_users row; Adam confirmed successful production sign-in.
   - id: A2
-    severity: required_day_1
+    severity: resolved
     decision: Confirm the Instagram handle for generated copy and assets.
-    recommended_default: null
+    recommended_default: "@heynowelpaso"
     consequence: Required before final template and caption fixtures.
     deadline: "2026-10-06"
-    context: No direct Instagram API access will be added.
+    context: Adam confirmed @heynowelpaso. No direct Instagram API access will be added.
   - id: A3
     severity: required_day_1
     decision: Supply five representative events or source links.
@@ -333,17 +330,17 @@ attention_queue:
 
 
   - id: A7
-    severity: required_before_G3
+    severity: resolved
     decision: Resolve whether multi-event carousel publishing is part of Instagram V1.
-    recommended_default: Finish the single-event G2 vertical slice before expanding the publishing model.
+    recommended_default: Carousel-only Instagram V1.
     consequence: >-
       Carousel support changes the publishing object model, event-selection
       workflow, rendering model, and likely asset-generation requirements.
-    deadline: null
+    deadline: "2026-10-07"
     context: >-
       Adam now envisions posts as custom carousels containing a series of
-      events. The original frozen Instagram V1 scope explicitly deferred
-      carousels and roundups.
+      events and explicitly approved carousel-only V1. This supersedes the
+      original single-event scope.
 
 gates:
   - id: G0_baseline_truth
@@ -387,10 +384,17 @@ gates:
   - id: G2_editorial_loop
     status: in_progress
     criteria:
-      - real_event_to_draft_to_edit_to_ready_to_posted_works
-      - manual_draft_works
-      - save_reload_and_idempotency_pass
-    evidence: []
+      - create_carousel_and_select_three_to_eight_events_works
+      - event_order_save_reload_and_idempotency_pass
+      - pending_review_blockers_are_explicit
+      - approved_carousel_ready_and_return_to_draft_work
+    evidence:
+      - 13 publishing and migration contract tests pass
+      - full Next.js production build passes all eight routes
+      - additive migrations instagram_carousels and carousel_draft_candidates applied
+      - transactional smoke passed create, three-event save, approval blocking, ready, and return-to-draft
+      - smoke transaction rolled back; carousel draft and item counts remain zero
+      - preview dpl_5bQoDZdDyRE9Sz4XjtnQmPCRNc9R READY at 94d806e4
     approved_by: null
     approved_at: null
 
@@ -426,3 +430,4 @@ gates:
     evidence: []
     approved_by: null
     approved_at: null
+
