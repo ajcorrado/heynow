@@ -11,7 +11,7 @@ sprint:
   release_candidate_sha: null
   checkpoint_code_sha: 94d806e4efd15558a437ae319a40a759c38a77d5
   current_gate: G2_editorial_loop
-  last_checkpoint_at: "2026-10-09T08:35:00-06:00"
+  last_checkpoint_at: "2026-10-09T08:31:00-06:00"
   resume_from: >-
     Run one authenticated G2 browser loop against preview deployment
     dpl_5bQoDZdDyRE9Sz4XjtnQmPCRNc9R at code SHA 94d806e4: create a carousel,
@@ -395,6 +395,7 @@ gates:
       - transactional smoke passed create, three-event save, approval blocking, ready, and return-to-draft
       - smoke transaction rolled back; carousel draft and item counts remain zero
       - preview dpl_5bQoDZdDyRE9Sz4XjtnQmPCRNc9R READY at 94d806e4
+      - draft PR #4 title, objective, required scope, deferrals, and gate checklist reconciled to carousel-only V1
     approved_by: null
     approved_at: null
 
