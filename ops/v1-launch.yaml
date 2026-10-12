@@ -10,16 +10,14 @@ sprint:
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
   checkpoint_code_sha: 94d806e4efd15558a437ae319a40a759c38a77d5
-  current_gate: G2_editorial_loop
-  last_checkpoint_at: "2026-10-09T08:31:00-06:00"
+  current_gate: G3_instagram_package
+  last_checkpoint_at: "2026-10-12T15:55:00-06:00"
   resume_from: >-
-    Run one authenticated G2 browser loop against preview deployment
-    dpl_5bQoDZdDyRE9Sz4XjtnQmPCRNc9R at code SHA 94d806e4: create a carousel,
-    select and reorder 3–8 upcoming events, save and reload, verify explicit
-    readiness blockers for pending events, approve three selected events
-    through the Event Registry, mark the carousel ready, and return it to
-    draft. Do not begin asset rendering or production deployment until this
-    loop passes.
+    Build the ordered Instagram carousel asset stage against code SHA 94d806e4:
+    generate one 1080x1350 cover and one 1080x1350 slide per selected event,
+    preview and download the ordered images, and copy the shared caption.
+    Validate long text, missing images, and stored-fact fidelity. Do not merge
+    to main, deploy production, or publish to Instagram.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -235,8 +233,8 @@ work_items:
     risk: low
     escalation: four expected SECURITY DEFINER advisor warnings are accepted because each RPC first asserts admin access and execution is revoked from anon and PUBLIC
     decision_needed: null
-    next_action: run the authenticated G2 browser editorial loop
-    updated_at: "2026-10-06T23:22:34-06:00"
+    next_action: build and verify the G3 Instagram carousel asset stage
+    updated_at: "2026-10-12T15:55:00-06:00"
 
 operational_incidents:
   - id: I1
@@ -282,7 +280,7 @@ operational_incidents:
       - carousel editor now exposes event selection, order, readiness blockers, and Return to draft
     blockers: []
     next_action: >-
-      Complete the authenticated carousel G2 browser loop.
+      Build and verify the G3 Instagram carousel asset stage.
 
 attention_queue:
   - id: A1
@@ -382,7 +380,7 @@ gates:
     approved_at: "2026-10-06T23:22:34-06:00"
 
   - id: G2_editorial_loop
-    status: in_progress
+    status: passed
     criteria:
       - create_carousel_and_select_three_to_eight_events_works
       - event_order_save_reload_and_idempotency_pass
@@ -396,8 +394,14 @@ gates:
       - smoke transaction rolled back; carousel draft and item counts remain zero
       - preview dpl_5bQoDZdDyRE9Sz4XjtnQmPCRNc9R READY at 94d806e4
       - draft PR #4 title, objective, required scope, deferrals, and gate checklist reconciled to carousel-only V1
-    approved_by: null
-    approved_at: null
+      - authenticated preview created carousel 95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d with three upcoming events
+      - title, cover kicker, @heynowelpaso caption, reordered event sequence, and draft save persisted at revision 2
+      - explicit blocker correctly reported three selected events still need data review and kept Ready disabled
+      - rollback-only authenticated transaction passed draft-to-ready-to-draft with approval metadata set and cleared
+      - rollback restored the live draft to revision 2, draft status, null approval, and all three events pending
+      - correct carousel deployment is dpl_5bQoDZdDyRE9Sz4XjtnQmPCRNc9R at heynow-pfcc-nd2gitnkw-adams-projects-74c1202c.vercel.app; prior 6zb8 preview was stale
+    approved_by: release_orchestrator
+    approved_at: "2026-10-12T15:55:00-06:00"
 
   - id: G3_instagram_package
     status: queued
