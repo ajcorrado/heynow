@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../../lib/supabase";
 import { listCarouselCandidates, loadPublicationDraft, saveCarousel, transitionCarousel } from "../../../../lib/publishing-client";
 import { carouselReadinessErrors, isInstagramUrl, normalizeCarouselContent } from "../../../../lib/publishing-validation.mjs";
+import { buildCarouselSlides, renderCarouselSlide, slideFilename } from "../../../../lib/carousel-assets.mjs";
 
 const EMPTY = normalizeCarouselContent({});
 const formatDate = value => value ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Denver" }).format(new Date(value)) : "Date TBA";
@@ -22,6 +23,8 @@ export default function PublishingEditorPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [assets, setAssets] = useState([]);
+  const [assetBusy, setAssetBusy] = useState(false);
 
   const load = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -48,13 +51,15 @@ export default function PublishingEditorPage() {
   const selected = selectedIds.map(eventId => {
     const candidate = candidateById.get(eventId);
     const current = currentById.get(eventId);
-    return candidate || {
+    return {
+      ...(current?.fact_snapshot || {}),
+      ...(candidate || {}),
       event_id: eventId,
-      title: current?.fact_snapshot?.title || current?.events?.title || "Unavailable event",
-      start_at: current?.fact_snapshot?.start_at || current?.events?.start_at,
-      venue: current?.fact_snapshot?.venue || "Venue TBA",
-      locality: current?.fact_snapshot?.locality || "",
-      data_review_state: current?.fact_snapshot?.data_review_state || "pending",
+      title: candidate?.title || current?.fact_snapshot?.title || current?.events?.title || "Unavailable event",
+      start_at: candidate?.start_at || current?.fact_snapshot?.start_at || current?.events?.start_at,
+      venue: candidate?.venue || current?.fact_snapshot?.venue || "Venue TBA",
+      locality: candidate?.locality || current?.fact_snapshot?.locality || "",
+      data_review_state: candidate?.data_review_state || current?.fact_snapshot?.data_review_state || "pending",
     };
   });
   const visibleCandidates = candidates.filter(item => {
@@ -126,6 +131,28 @@ export default function PublishingEditorPage() {
     catch { setError("Could not copy the caption."); }
   }
 
+  function generateAssets() {
+    setAssetBusy(true); setError(""); setMessage("");
+    try {
+      const slides = buildCarouselSlides(content, selected);
+      const rendered = slides.map((slide, index) => {
+        const canvas = document.createElement("canvas");
+        renderCarouselSlide(canvas, slide, index, slides.length);
+        return { slide, filename: slideFilename(index, slide), url: canvas.toDataURL("image/png") };
+      });
+      setAssets(rendered);
+      setMessage(`${rendered.length} exact-size PNG previews generated.`);
+    } catch (caught) { setError(caught.message || "Could not generate carousel assets."); }
+    setAssetBusy(false);
+  }
+
+  function downloadAsset(asset) {
+    const link = document.createElement("a");
+    link.download = asset.filename;
+    link.href = asset.url;
+    link.click();
+  }
+
   if (!draft && !error) return <main className="page-shell">Loading carousel…</main>;
   if (!draft) return <main className="page-shell"><Link href="/admin/publishing">← Publishing Desk</Link><div className="error-card">{error}</div></main>;
 
@@ -145,6 +172,10 @@ export default function PublishingEditorPage() {
 
         <section className="card carousel-events"><div className="section-heading"><div><h2>Carousel order</h2><p className="muted">Cover first, then one slide for each event.</p></div><strong>{selectedIds.length}/8</strong></div>
           {!selected.length ? <p className="muted">No events selected yet.</p> : <ol className="selected-events">{selected.map((item, index) => <li key={item.event_id}><div><strong>{item.title}</strong><span>{formatDate(item.start_at)} · {item.venue || "Venue TBA"}{item.locality ? ` · ${item.locality}` : ""}</span><small className={item.data_review_state === "approved" ? "review-approved" : "review-pending"}>{item.data_review_state === "approved" ? "Data approved" : "Needs data review before Ready"}</small></div>{!locked ? <div className="order-actions"><button className="secondary compact" disabled={index === 0} onClick={() => moveEvent(index, -1)} aria-label={`Move ${item.title} up`}>↑</button><button className="secondary compact" disabled={index === selected.length - 1} onClick={() => moveEvent(index, 1)} aria-label={`Move ${item.title} down`}>↓</button><button className="secondary compact" onClick={() => removeEvent(item.event_id)}>Remove</button></div> : null}</li>)}</ol>}
+        </section>
+
+        <section className="card asset-studio"><div className="section-heading"><div><h2>Instagram assets</h2><p className="muted">One cover plus one 1080×1350 PNG per event. Regenerate after editorial changes.</p></div><button disabled={assetBusy || !content.title || !selected.length} onClick={generateAssets}>{assetBusy ? "Generating…" : "Generate previews"}</button></div>
+          {!assets.length ? <div className="asset-empty">No assets generated yet. Missing photography uses HeyNow’s poster treatment.</div> : <div className="asset-grid">{assets.map((asset, index) => <article className="asset-preview" key={asset.filename}><img src={asset.url} alt={asset.slide.kind === "cover" ? "Carousel cover preview" : `${asset.slide.title} event slide preview`} /><div><strong>{index + 1}. {asset.slide.kind === "cover" ? "Cover" : asset.slide.title}</strong><button className="secondary compact" onClick={() => downloadAsset(asset)}>Download PNG</button></div></article>)}</div>}
         </section>
 
         {!locked ? <section className="card event-picker"><h2>Add upcoming events</h2><p className="muted">You can draft with pending events; every selection must be data-approved before Ready.</p><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search event or venue" /><div className="candidate-events">{visibleCandidates.slice(0, 80).map(item => <button className="candidate-event" key={item.event_id} disabled={selectedIds.length >= 8} onClick={() => addEvent(item.event_id)}><span><strong>{item.title}</strong><small>{formatDate(item.start_at)} · {item.venue || "Venue TBA"} · {item.data_review_state === "approved" ? "approved" : "needs review"}</small></span><b>+ Add</b></button>)}</div>{!visibleCandidates.length ? <p className="muted">No matching upcoming events.</p> : null}</section> : null}
