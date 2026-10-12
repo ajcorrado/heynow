@@ -7,16 +7,17 @@ sprint:
   scope_frozen_at: "2026-10-07T18:21:00-06:00"
   branch: launch/instagram-v1
   base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
-  production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
+  production_sha: 93bc46bf90df75ad47cfeb07210a450eacfcec5f
   release_candidate_sha: a31fc270b4e9a47907a30687edce4c30a9c35d21
   checkpoint_code_sha: b2f232cf0bca52af3f5417453251f4f51f8b46ac
   current_gate: G5_production
-  last_checkpoint_at: "2026-10-12T16:40:00-06:00"
+  last_checkpoint_at: "2026-10-12T16:44:00-06:00"
   resume_from: >-
-    Stop for Adam's explicit production go/no-go. If authorized, reconcile and
-    merge PR #4, deploy the approved release candidate, run the production smoke,
-    and retain rollback to dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 at SHA 2d51061e.
-    Instagram publication remains manual and requires separate confirmation.
+    Adam opens the production Publishing Desk, signs in, and confirms carousel
+    95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d loads and generates assets. Then, only
+    when Adam chooses, publish the first post manually to Instagram and record
+    its live URL in HeyNow. Roll back to dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 at
+    SHA 2d51061e if the authenticated production smoke fails.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -460,7 +461,12 @@ gates:
       - public email signup confirmed disabled by Adam
       - Supabase Pro requirement explicitly waived by Adam with Free-tier pause and protection risk accepted
       - release candidate and rollback deployment are identified
-      - production deployment and Instagram publication remain unauthorized
+      - production deployment authorized by Adam on 2026-10-12
+      - PR #4 merged without divergence or unresolved review threads at merge SHA 93bc46bf
+      - production dpl_JAT4jHQda3JQnrQnzT8CwfHc3DG7 READY at exact merge SHA 93bc46bf
+      - production aliases assigned without error, including heynow-pfcc.vercel.app
+      - public home, login, Publishing Desk, and saved-carousel routes return HTTP 200
+      - authenticated production smoke and manual first Instagram publication remain outstanding
     approved_by: null
     approved_at: null
 
