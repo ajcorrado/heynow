@@ -11,13 +11,12 @@ sprint:
   release_candidate_sha: a31fc270b4e9a47907a30687edce4c30a9c35d21
   checkpoint_code_sha: b2f232cf0bca52af3f5417453251f4f51f8b46ac
   current_gate: G5_production
-  last_checkpoint_at: "2026-10-12T16:39:00-06:00"
+  last_checkpoint_at: "2026-10-12T16:40:00-06:00"
   resume_from: >-
-    Stop for Adam's production go/no-go. Before production, confirm Supabase Pro
-    upgrade and public email signup disablement, reconcile PR #4 at release
-    candidate SHA a31fc270, and prepare rollback to production deployment
-    dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 at SHA 2d51061e. Do not merge, deploy
-    production, or publish to Instagram without Adam's explicit authorization.
+    Stop for Adam's explicit production go/no-go. If authorized, reconcile and
+    merge PR #4, deploy the approved release candidate, run the production smoke,
+    and retain rollback to dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 at SHA 2d51061e.
+    Instagram publication remains manual and requires separate confirmation.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -312,19 +311,19 @@ attention_queue:
     deadline: "2026-10-07"
     context: Adam retains final brand judgment.
   - id: A5
-    severity: required_before_production
+    severity: resolved_by_explicit_waiver
     decision: Upgrade Supabase from Free to Pro.
     recommended_default: Upgrade before the Day 5 production gate.
-    consequence: Avoids inactivity auto-pause and enables leaked-password protection.
+    consequence: Adam accepts inactivity auto-pause and reduced production-protection risk.
     deadline: "2026-10-09"
-    context: Current project recovered normally, but Free-tier pausing is a release risk.
+    context: Adam explicitly waived the Pro requirement on 2026-10-12; project remains on Free.
   - id: A6
-    severity: required_before_production
+    severity: resolved
     decision: Disable public email signup in Supabase Authentication Providers.
     recommended_default: Disable now; retain the existing confirmed admin.
     consequence: Aligns Auth configuration with the one-admin internal product.
     deadline: "2026-10-07"
-    context: Database RLS already blocks non-admin data access.
+    context: Adam confirmed public email signup is disabled; database RLS also blocks non-admin data access.
 
 
   - id: A7
@@ -457,7 +456,11 @@ gates:
       - production_smoke_passes
       - first_real_post_published_manually
       - Instagram_URL_recorded
-    evidence: []
+    evidence:
+      - public email signup confirmed disabled by Adam
+      - Supabase Pro requirement explicitly waived by Adam with Free-tier pause and protection risk accepted
+      - release candidate and rollback deployment are identified
+      - production deployment and Instagram publication remain unauthorized
     approved_by: null
     approved_at: null
 
