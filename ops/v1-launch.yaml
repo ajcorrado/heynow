@@ -9,15 +9,14 @@ sprint:
   base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   production_sha: 93bc46bf90df75ad47cfeb07210a450eacfcec5f
   release_candidate_sha: a31fc270b4e9a47907a30687edce4c30a9c35d21
-  checkpoint_code_sha: b2f232cf0bca52af3f5417453251f4f51f8b46ac
+  checkpoint_code_sha: 93bc46bf90df75ad47cfeb07210a450eacfcec5f
   current_gate: G5_production
-  last_checkpoint_at: "2026-10-12T16:44:00-06:00"
+  last_checkpoint_at: "2026-10-12T16:49:00-06:00"
   resume_from: >-
-    Adam opens the production Publishing Desk, signs in, and confirms carousel
-    95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d loads and generates assets. Then, only
-    when Adam chooses, publish the first post manually to Instagram and record
-    its live URL in HeyNow. Roll back to dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 at
-    SHA 2d51061e if the authenticated production smoke fails.
+    Instagram V1 launch is complete. Begin a post-launch review from production
+    SHA 93bc46bf: monitor the first post, capture editorial and audience learnings,
+    and prioritize the next smallest improvement. Do not expand scope without a
+    new bounded work item.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -451,7 +450,7 @@ gates:
     approved_at: "2026-10-12T16:39:00-06:00"
 
   - id: G5_production
-    status: in_progress
+    status: passed
     criteria:
       - production_matches_approved_sha
       - production_smoke_passes
@@ -466,7 +465,11 @@ gates:
       - production dpl_JAT4jHQda3JQnrQnzT8CwfHc3DG7 READY at exact merge SHA 93bc46bf
       - production aliases assigned without error, including heynow-pfcc.vercel.app
       - public home, login, Publishing Desk, and saved-carousel routes return HTTP 200
-      - authenticated production smoke and manual first Instagram publication remain outstanding
-    approved_by: null
-    approved_at: null
+      - Adam confirmed authenticated production carousel load and asset generation
+      - first carousel published manually at https://www.instagram.com/p/DeaVyzpDwgj/
+      - live Instagram URL recorded on carousel 95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d
+      - committed record verified posted at revision 5 with posted_at 2026-10-12T22:49:10.120139Z
+      - content_draft_changes audit verified ready-to-posted transition by the authorized admin at revision 5
+    approved_by: adam
+    approved_at: "2026-10-12T16:49:10-06:00"
 
