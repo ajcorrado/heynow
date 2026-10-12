@@ -9,15 +9,15 @@ sprint:
   base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
-  checkpoint_code_sha: 94d806e4efd15558a437ae319a40a759c38a77d5
+  checkpoint_code_sha: 454cfece9ea9af2df23d2e2cb08af27093a2fa9b
   current_gate: G3_instagram_package
-  last_checkpoint_at: "2026-10-12T15:55:00-06:00"
+  last_checkpoint_at: "2026-10-12T16:15:00-06:00"
   resume_from: >-
-    Build the ordered Instagram carousel asset stage against code SHA 94d806e4:
-    generate one 1080x1350 cover and one 1080x1350 slide per selected event,
-    preview and download the ordered images, and copy the shared caption.
-    Validate long text, missing images, and stored-fact fidelity. Do not merge
-    to main, deploy production, or publish to Instagram.
+    Open preview deployment dpl_HyxbPK9zKLp1EeJMwS2guFqoFUvM on a mobile
+    browser, sign in as the existing admin, and open carousel
+    95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d. Generate the four ordered previews,
+    visually approve or request changes, download all PNGs, and copy the
+    caption. Do not merge to main, deploy production, or publish to Instagram.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -404,13 +404,21 @@ gates:
     approved_at: "2026-10-12T15:55:00-06:00"
 
   - id: G3_instagram_package
-    status: queued
+    status: in_progress
     criteria:
       - exact_1080x1350_output
       - caption_copy_works_on_mobile
       - long_text_and_missing_image_cases_pass
       - rendered_facts_match_stored_record
-    evidence: []
+    evidence:
+      - code-native Canvas renderer emits one 1080x1350 cover and one ordered slide per selected event
+      - editor provides in-app ordered previews, individual PNG downloads, and existing caption copy
+      - deterministic missing-image treatment and bounded text wrapping with ellipsis are implemented
+      - event facts render exclusively from immutable selected-event snapshots with explicit unknown labels
+      - 15 publishing and migration-contract tests pass
+      - full Next.js production build passes all eight routes
+      - preview dpl_HyxbPK9zKLp1EeJMwS2guFqoFUvM READY at code SHA 454cfece
+      - protected preview route returns HTTP 200 for the saved G2 carousel
     approved_by: null
     approved_at: null
 
