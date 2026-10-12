@@ -24,7 +24,7 @@ insert into public.sources (
 select c.id, 'VERSO', 'venue_calendar', 'city', 'https://www.versoelpaso.com/',
   'structured_html', 'verso', 90, true,
   array['music','arts','food','community'], array['edge','authority'], 'P0',
-  'approved', 'VERSO', 'medium', false, false, false, 'medium',
+  'active', 'VERSO', 'medium', false, false, false, 'medium',
   'json_ld', 'active', 2, 4, 5, 5, 4, 5, 4, 5
 from public.cities c
 where c.slug = 'el-paso'
