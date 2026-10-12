@@ -11,13 +11,13 @@ sprint:
   release_candidate_sha: null
   checkpoint_code_sha: 58f3ed7d882e75b7fba31d8ee22573e49f9291dd
   current_gate: G4_release_candidate
-  last_checkpoint_at: "2026-10-12T16:21:00-06:00"
+  last_checkpoint_at: "2026-10-12T16:25:00-06:00"
   resume_from: >-
-    Open carousel 95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d on preview deployment
-    dpl_EpTzWSs2DCiHP9SD9cEHhsHckLQr. Follow each selected event's registry link,
-    review and approve its data, then time the mobile generate-download-copy
-    workflow. Confirm no open P0/P1 defects and document rollback. Stop for
-    Adam's production go/no-go; do not merge, deploy production, or publish.
+    Run one timed phone pass on carousel 95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d:
+    open the preview, generate and download the four PNGs, and copy the caption.
+    Record whether the workflow completes in under five minutes, then confirm
+    no open P0/P1 defects and document rollback. Stop for Adam's production
+    go/no-go; do not merge, deploy production, or publish.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -437,6 +437,8 @@ gates:
       - canonical event-detail links added across carousel order, pending-review warnings, generated previews, event picker, Morning Review candidates, and registry table
       - 15 publishing tests and full eight-route Next.js build pass after the link changes
       - event-link preview dpl_EpTzWSs2DCiHP9SD9cEHhsHckLQr READY at code SHA 58f3ed7d
+      - Adam confirmed all three selected event records approved through the linked desktop workflow
+      - desktop link and approval workflow completed; under-five-minute phone timing remains unverified
     approved_by: null
     approved_at: null
 
