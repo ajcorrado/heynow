@@ -1,0 +1,466 @@
+sprint:
+  id: heynow-instagram-v1-2026-10
+  objective: >-
+    Let Adam curate 3–8 upcoming events into one ordered Instagram carousel
+    package and shared caption, publish it manually from his phone, and record
+    the live Instagram URL without changing canonical event facts.
+  scope_frozen_at: "2026-10-07T18:21:00-06:00"
+  branch: launch/instagram-v1
+  base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
+  production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
+  release_candidate_sha: a31fc270b4e9a47907a30687edce4c30a9c35d21
+  checkpoint_code_sha: b2f232cf0bca52af3f5417453251f4f51f8b46ac
+  current_gate: G5_production
+  last_checkpoint_at: "2026-10-12T16:40:00-06:00"
+  resume_from: >-
+    Stop for Adam's explicit production go/no-go. If authorized, reconcile and
+    merge PR #4, deploy the approved release candidate, run the production smoke,
+    and retain rollback to dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 at SHA 2d51061e.
+    Instagram publication remains manual and requires separate confirmation.
+  target_release_date: "2026-10-10"
+  timezone: America/Denver
+
+operating_policy:
+  source_of_truth: ops/v1-launch.yaml
+  status_owner: release_orchestrator
+  agent_result_format:
+    - result
+    - changed
+    - proof
+    - risks
+    - attention
+  retry:
+    maximum_attempts: 2
+  interrupt_adam_only_for:
+    - credentials_or_access
+    - security_or_data_integrity
+    - brand_or_editorial_judgment
+    - irreversible_external_action
+    - production_go_no_go
+
+continuity:
+  checkpoint_after:
+    - every_external_write
+    - every_completed_work_item
+    - before_any_expected_usage_pause
+  checkpoint_contents:
+    - exact_branch_and_commit
+    - current_gate
+    - passed_evidence
+    - blockers
+    - next_single_action
+    - uncommitted_or_external_changes
+  pause_rule: >-
+    Stop at a committed boundary. Never leave a migration partly applied, a
+    deployment promotion in progress, or multiple agents writing the same file.
+  resume_rule: >-
+    Read ops/v1-launch.yaml and the open launch pull request first, verify the
+    recorded branch and deployment still match, then execute only resume_from.
+  scheduled_resume_prompt: >-
+    Resume the HeyNow Instagram V1 launch from ops/v1-launch.yaml. Reconcile the
+    open launch pull request and live Vercel/Supabase state, do not repeat passed
+    work, execute the next bounded item, checkpoint evidence, and stop for any
+    irreversible production action or Adam decision.
+
+scope:
+  required:
+    - existing_admin_sign_in
+    - create_instagram_carousel_by_city
+    - select_remove_and_order_three_to_eight_events
+    - seed_carousel_from_event_registry
+    - edit_carousel_title_cover_kicker_and_caption
+    - preserve_canonical_event_and_source_evidence
+    - generate_ordered_1080x1350_carousel_assets
+    - preview_and_download_ordered_assets
+    - copy_caption_on_mobile
+    - move_draft_to_ready_to_posted_or_skipped
+    - record_posted_timestamp_and_instagram_url
+  stretch:
+    - 1080x1920_story_derivative
+  deferred:
+    - consumer_accounts
+    - public_event_pages
+    - user_submissions_saves_comments_or_feeds
+    - direct_instagram_api_publishing
+    - scheduled_social_publishing
+    - single_event_feed_post_workflow
+    - unfinished_source_adapters
+    - ten_source_ingestion_acceptance
+    - automated_ingestion_scheduling
+    - newsletter_delivery
+    - permanent_monitoring_or_management_product
+
+work_items:
+  - id: D1-PLATFORM
+    title: Verify Supabase data and authorization baseline
+    owner: platform_agent
+    permissions: read_only
+    dependencies: []
+    trigger: sprint_started
+    status: passed
+    success_criteria:
+      - current project health is known
+      - migrations and exposed tables are inventoried
+      - admin authorization and RLS behavior are documented
+      - Day 2 additive schema path is defined
+    validation:
+      - Supabase project response
+      - migration and table queries
+      - policy and advisor evidence
+    evidence:
+      - Supabase project abxqhtwkabrblyrefsys ACTIVE_HEALTHY on Postgres 17.6
+      - 15 migrations verified through 20260911131753_protect_approved_event_facts
+      - all 29 public tables have RLS enabled
+      - one confirmed auth user maps to one admin_users row
+      - content_drafts exists, is empty, and is protected by admin-only RLS
+    risk: medium
+    escalation: signup configuration and free-tier availability before production
+    decision_needed: disable signup and upgrade Supabase before launch
+    next_action: extend content_drafts additively with constraints, audit, and RPCs
+    updated_at: "2026-10-05T20:31:00-06:00"
+
+  - id: D1-REPO
+    title: Verify repository and build baseline
+    owner: repository_agent
+    permissions: read_only
+    dependencies: []
+    trigger: sprint_started
+    status: passed
+    success_criteria:
+      - current main tree and dependencies are inventoried
+      - auth and editorial flows are traced
+      - build reproducibility is tested or blocker is documented
+      - Day 2 file and interface contracts are defined
+    validation:
+      - GitHub tree and file evidence
+      - package and route inspection
+      - build output or explicit credential blocker
+    evidence:
+      - main SHA 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939 verified
+      - Next.js 16.3.4, React 19.3.0, Supabase JS 2.116.0 inventoried
+      - seven existing routes and current auth/data flows traced
+      - Vercel cloned launch head 0a082241 and completed next build, TypeScript, and all seven pages in 8 seconds
+    risk: medium
+    escalation: build must be proven through preview or an authenticated checkout
+    decision_needed: null
+    next_action: verify the Publishing Desk preview build
+    updated_at: "2026-10-06T13:31:00-06:00"
+
+  - id: D1-VERCEL
+    title: Verify production and rollback baseline
+    owner: vercel_agent
+    permissions: read_only
+    dependencies: []
+    trigger: sprint_started
+    status: passed
+    success_criteria:
+      - production deployment and SHA are verified
+      - required environment variable names are known
+      - recent runtime errors are checked
+      - rollback deployment is identified
+    validation:
+      - Vercel project and deployment responses
+      - environment key inventory without values
+      - runtime log evidence
+    evidence:
+      - production dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 READY at main SHA 2d51061e
+      - preview dpl_DiNW33PfcXHy3YSty7FoNTwH358b READY at launch SHA 0a082241
+      - required public Supabase environment variable names present
+      - rollback deployment dpl_7fZGkzhk9CcPN1hZsK2MitByxs3z identified
+    risk: medium
+    escalation: authenticated and unauthorized runtime behavior remain untested
+    decision_needed: null
+    next_action: run auth smoke tests before G1
+    updated_at: "2026-10-05T20:31:00-06:00"
+
+  - id: D1-PRODUCT
+    title: Freeze Publishing Desk contract
+    owner: product_agent
+    permissions: read_only
+    dependencies:
+      - D1-REPO
+    trigger: current_workflow_understood
+    status: passed
+    success_criteria:
+      - smallest event_to_post flow is documented
+      - required fields and state transitions are frozen
+      - mobile and missing_data cases are specified
+    validation:
+      - current screen and data flow evidence
+      - written Day 2 acceptance contract
+    evidence:
+      - event to draft to edit to ready to export to posted flow frozen
+      - content_drafts selected as the additive persistence base
+      - feed_single Instagram format and draft-ready-posted-skipped states frozen
+      - mobile copy-download-post-record handoff accepted as the release path
+    risk: low
+    escalation: material conflict with existing editorial policy
+    decision_needed: Adam to confirm approval requirement and brand inputs
+    next_action: implement Day 2 migration and Publishing Desk
+    updated_at: "2026-10-05T20:31:00-06:00"
+
+  - id: D2-PUBLISHING
+    title: Implement Publishing Desk foundation
+    owner: release_orchestrator
+    permissions: controlled_live_schema
+    dependencies:
+      - D1-PLATFORM
+      - D1-REPO
+      - D1-PRODUCT
+    trigger: baseline_build_proven
+    status: passed
+    success_criteria:
+      - additive migration defines immutable source snapshots and narrow RPCs
+      - draft-ready-posted-skipped state machine is enforced
+      - event and manual draft entry points exist
+      - editorial edits survive save and reload
+      - production app deployment remains unchanged and the live migration is additive
+    validation:
+      - node publishing validation tests
+      - Vercel preview build
+      - controlled database migration review and G1 transactional smoke tests
+    evidence:
+      - nine validation and migration-contract tests pass
+      - schema and UI reviews passed; URL validation, atomic transitions, ready locking, channel isolation, provenance, idempotency, and mobile copy defects were fixed
+      - preview dpl_41UVDcGJ86SMR5S6KUJe6rDMn4CL READY at code SHA cf032d4e
+      - migration 20261007052110_instagram_publishing_desk applied successfully to Supabase abxqhtwkabrblyrefsys
+      - six expected columns, four narrow RPCs, audit-table RLS, and explicit grants verified
+      - transactional admin smoke created manual and event-derived drafts, saved revisions, traversed ready and posted states, verified source snapshots and audit rows, then rolled back
+      - simulated non-admin authenticated caller was denied; anon and PUBLIC cannot execute creation RPCs
+      - post-test committed counts remained zero drafts and zero audit rows; canonical events remained 714
+      - production app remains on SHA 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
+    risk: low
+    escalation: four expected SECURITY DEFINER advisor warnings are accepted because each RPC first asserts admin access and execution is revoked from anon and PUBLIC
+    decision_needed: null
+    next_action: complete G4 release-candidate acceptance
+    updated_at: "2026-10-12T16:16:00-06:00"
+
+operational_incidents:
+  - id: I1
+    scope: morning_editorial_sweep
+    launch_blocking: false
+    status: verified
+    observed_run_id: 74f33d1f-afec-4e6a-9f81-ddac4f54f8a4
+    observed_at: "2026-10-07T08:30:04-06:00"
+    diagnosis: >-
+      The parent sweep aborted both implemented source requests at 105 seconds
+      and marked the run failed, but the child ingestions completed successfully
+      at 111 and 117 seconds.
+    evidence:
+      - parent run closed failed with no stale lock
+      - Visit El Paso child run succeeded with 120 observations, 2 created, and 118 matched
+      - KTEP child run succeeded with 120 observations, 4 created, and 116 matched
+      - both child runs reported zero ingestion errors
+      - no content drafts were created and no child run remains active
+      - authenticated rerun completed with both implemented sources successful
+      - rerun reported 0 failed sources, 8 unsupported sources, and 251 eligible events
+    mitigation:
+      - source batch reduced from 120 to 100 events
+      - parent per-source wait increased from 105 to 120 seconds
+      - fix committed at 2ee4645fe1a0cb01eb21563686b70b357062e587
+      - heynow-sweep Edge Function version 7 deployed ACTIVE with JWT verification enabled
+    blockers: []
+    next_action: none
+
+
+  - id: I2
+    scope: publishing_desk
+    launch_blocking: true
+    status: resolved_by_product_reframe
+    diagnosis: >-
+      The deployed editor correctly implemented the original single-event
+      contract, but that contract did not match Adam's carousel-first workflow.
+      Save worked; Ready was blocked by unnamed missing fields, and Return to
+      draft was hidden because the record had never reached ready.
+    evidence:
+      - reported draft f60dcc8b-351b-4383-873c-1fc79a44b240 saved twice and remained draft
+      - missing caption, date, and venue explained the disabled Ready action
+      - Adam explicitly chose carousel-only for Instagram V1
+      - carousel editor now exposes event selection, order, readiness blockers, and Return to draft
+    blockers: []
+    next_action: >-
+      Complete G4 release-candidate acceptance without changing production.
+
+attention_queue:
+  - id: A1
+    severity: resolved
+    decision: The sole authorized V1 admin is the existing confirmed account.
+    recommended_default: ajcorrado@gmail.com
+    consequence: Single-editor authorization and production sign-in are verified.
+    deadline: "2026-10-06"
+    context: One auth user maps to one admin_users row; Adam confirmed successful production sign-in.
+  - id: A2
+    severity: resolved
+    decision: Confirm the Instagram handle for generated copy and assets.
+    recommended_default: "@heynowelpaso"
+    consequence: Required before final template and caption fixtures.
+    deadline: "2026-10-06"
+    context: Adam confirmed @heynowelpaso. No direct Instagram API access will be added.
+  - id: A3
+    severity: required_day_1
+    decision: Supply five representative events or source links.
+    recommended_default: null
+    consequence: Required for realistic rendering and workflow validation.
+    deadline: "2026-10-06"
+    context: Manual content is acceptable; ingestion breadth is not a launch gate.
+  - id: A4
+    severity: optional_day_1
+    decision: Supply logo_icon files and two or three visual references.
+    recommended_default: Use the locked continuous_border poster_editorial direction.
+    consequence: Missing assets will not block engineering.
+    deadline: "2026-10-07"
+    context: Adam retains final brand judgment.
+  - id: A5
+    severity: resolved_by_explicit_waiver
+    decision: Upgrade Supabase from Free to Pro.
+    recommended_default: Upgrade before the Day 5 production gate.
+    consequence: Adam accepts inactivity auto-pause and reduced production-protection risk.
+    deadline: "2026-10-09"
+    context: Adam explicitly waived the Pro requirement on 2026-10-12; project remains on Free.
+  - id: A6
+    severity: resolved
+    decision: Disable public email signup in Supabase Authentication Providers.
+    recommended_default: Disable now; retain the existing confirmed admin.
+    consequence: Aligns Auth configuration with the one-admin internal product.
+    deadline: "2026-10-07"
+    context: Adam confirmed public email signup is disabled; database RLS also blocks non-admin data access.
+
+
+  - id: A7
+    severity: resolved
+    decision: Resolve whether multi-event carousel publishing is part of Instagram V1.
+    recommended_default: Carousel-only Instagram V1.
+    consequence: >-
+      Carousel support changes the publishing object model, event-selection
+      workflow, rendering model, and likely asset-generation requirements.
+    deadline: "2026-10-07"
+    context: >-
+      Adam now envisions posts as custom carousels containing a series of
+      events and explicitly approved carousel-only V1. This supersedes the
+      original single-event scope.
+
+gates:
+  - id: G0_baseline_truth
+    status: passed
+    criteria:
+      - repository_sha_verified
+      - production_sha_verified
+      - admin_login_behavior_verified
+      - Supabase_schema_and_migrations_verified
+      - current_build_result_or_explicit_blocker_recorded
+      - rollback_deployment_identified
+      - V1_scope_and_Day_2_contract_frozen
+    evidence:
+      - production remains at 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939; launch code head reconciled at cf032d4e103d93ca2411f5130a6eee023a595525
+      - Supabase project, migrations, schema, RLS, admin mapping, and content_drafts verified
+      - Vercel production, preview, environment names, and rollback deployment verified
+      - V1 scope and Publishing Desk contract frozen
+      - launch preview dpl_41UVDcGJ86SMR5S6KUJe6rDMn4CL READY at cf032d4e
+      - Adam confirmed successful authenticated production sign-in
+    approved_by: adam
+    approved_at: "2026-10-06T23:16:40-06:00"
+
+  - id: G1_data_and_access_safety
+    status: passed
+    criteria:
+      - sole_authorized_admin_succeeds
+      - anonymous_and_other_authenticated_users_fail
+      - publication_data_RLS_verified
+      - canonical_event_isolation_verified
+      - additive_migration_and_rollback_compatibility_verified
+    evidence:
+      - additive migration 20261007052110_instagram_publishing_desk applied successfully
+      - authenticated SELECT is explicit; direct authenticated INSERT is denied; audit-table RLS is enabled
+      - anon and PUBLIC cannot execute creation RPCs; authenticated non-admin caller is rejected by private.assert_publishing_admin()
+      - admin transactional smoke passed manual and event-derived creation, revision updates, state transitions, source snapshots, and audit recording
+      - smoke transaction rolled back; committed draft and audit counts stayed zero and canonical events stayed 714
+      - independent migration review returned GO with no destructive statements or incompatible live references
+    approved_by: release_orchestrator
+    approved_at: "2026-10-06T23:22:34-06:00"
+
+  - id: G2_editorial_loop
+    status: passed
+    criteria:
+      - create_carousel_and_select_three_to_eight_events_works
+      - event_order_save_reload_and_idempotency_pass
+      - pending_review_blockers_are_explicit
+      - approved_carousel_ready_and_return_to_draft_work
+    evidence:
+      - 13 publishing and migration contract tests pass
+      - full Next.js production build passes all eight routes
+      - additive migrations instagram_carousels and carousel_draft_candidates applied
+      - transactional smoke passed create, three-event save, approval blocking, ready, and return-to-draft
+      - smoke transaction rolled back; carousel draft and item counts remain zero
+      - preview dpl_5bQoDZdDyRE9Sz4XjtnQmPCRNc9R READY at 94d806e4
+      - draft PR #4 title, objective, required scope, deferrals, and gate checklist reconciled to carousel-only V1
+      - authenticated preview created carousel 95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d with three upcoming events
+      - title, cover kicker, @heynowelpaso caption, reordered event sequence, and draft save persisted at revision 2
+      - explicit blocker correctly reported three selected events still need data review and kept Ready disabled
+      - rollback-only authenticated transaction passed draft-to-ready-to-draft with approval metadata set and cleared
+      - rollback restored the live draft to revision 2, draft status, null approval, and all three events pending
+      - correct carousel deployment is dpl_5bQoDZdDyRE9Sz4XjtnQmPCRNc9R at heynow-pfcc-nd2gitnkw-adams-projects-74c1202c.vercel.app; prior 6zb8 preview was stale
+    approved_by: release_orchestrator
+    approved_at: "2026-10-12T15:55:00-06:00"
+
+  - id: G3_instagram_package
+    status: passed
+    criteria:
+      - exact_1080x1350_output
+      - caption_copy_works_on_mobile
+      - long_text_and_missing_image_cases_pass
+      - rendered_facts_match_stored_record
+    evidence:
+      - code-native Canvas renderer emits one 1080x1350 cover and one ordered slide per selected event
+      - editor provides in-app ordered previews, individual PNG downloads, and existing caption copy
+      - deterministic missing-image treatment and bounded text wrapping with ellipsis are implemented
+      - event facts render exclusively from immutable selected-event snapshots with explicit unknown labels
+      - 15 publishing and migration-contract tests pass
+      - full Next.js production build passes all eight routes
+      - preview dpl_HyxbPK9zKLp1EeJMwS2guFqoFUvM READY at code SHA 454cfece
+      - protected preview route returns HTTP 200 for the saved G2 carousel
+      - Adam approved the generated package after authenticated preview review
+    approved_by: adam
+    approved_at: "2026-10-12T16:14:00-06:00"
+
+  - id: G4_release_candidate
+    status: passed
+    criteria:
+      - three_real_events_complete
+      - mobile_workflow_under_five_minutes
+      - no_open_P0_or_P1_defects
+      - rollback_documented
+    evidence:
+      - latest checkpoint preview dpl_2hyWq6tj86z1ba8qMdrQz4vC7Nkz READY at branch SHA 41745b31
+      - G3 visual package approved by Adam
+      - production remains unchanged at SHA 2d51061e
+      - canonical event-detail links added across carousel order, pending-review warnings, generated previews, event picker, Morning Review candidates, and registry table
+      - 15 publishing tests and full eight-route Next.js build pass after the link changes
+      - event-link preview dpl_EpTzWSs2DCiHP9SD9cEHhsHckLQr READY at code SHA 58f3ed7d
+      - Adam confirmed all three selected event records approved through the linked desktop workflow
+      - desktop link and approval workflow completed; under-five-minute phone timing remains unverified
+      - first phone pass completed in 1.5 minutes until PNG saving stalled
+      - mobile defect fixed with Blob-backed PNG files and native multi-file or single-file share/save fallback
+      - 15 publishing tests and full eight-route build pass after mobile save fix
+      - mobile-save preview dpl_9dYiFVTAfvtrk5QhyrppUfG3AVap READY at code SHA b2f232cf
+      - Adam completed the corrected phone workflow in 1.5 minutes
+      - no open P0 or P1 defects remain after the mobile save fix
+      - release-candidate checkpoint dpl_52gTN29Ja4qwoCj7NqZBJWuk6Aqn READY at SHA a31fc270
+      - rollback target remains production dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 at SHA 2d51061e
+    approved_by: release_orchestrator
+    approved_at: "2026-10-12T16:39:00-06:00"
+
+  - id: G5_production
+    status: in_progress
+    criteria:
+      - production_matches_approved_sha
+      - production_smoke_passes
+      - first_real_post_published_manually
+      - Instagram_URL_recorded
+    evidence:
+      - public email signup confirmed disabled by Adam
+      - Supabase Pro requirement explicitly waived by Adam with Free-tier pause and protection risk accepted
+      - release candidate and rollback deployment are identified
+      - production deployment and Instagram publication remain unauthorized
+    approved_by: null
+    approved_at: null
+

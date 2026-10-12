@@ -122,7 +122,7 @@ export default function EventDetailPage() {
 
   return (
     <main className="page-shell">
-      <div className="detail-breadcrumbs"><Link href="/admin/events">← Event Registry</Link><Link href="/admin/sources">Source Registry</Link><Link href="/admin/review">Morning Review</Link></div>
+      <div className="detail-breadcrumbs"><Link href="/admin/events">← Event Registry</Link><Link href="/admin/sources">Source Registry</Link><Link href="/admin/review">Morning Review</Link><Link href="/admin/publishing">Publishing Desk</Link></div>
       <header className="detail-header event-detail-header">
         <div>
           <div className="brand-mark">HEY NOW</div>
@@ -130,7 +130,7 @@ export default function EventDetailPage() {
           <p className="event-lede">{fmtDate(event.start_at)} · {venue?.name || "Venue unassigned"}{venue?.locality ? ` · ${venue.locality}` : ""}</p>
           <div><StatePill value={event.status} />{categories.map(item => <span className="pill" key={item.id}>{item.name}</span>)}</div>
         </div>
-        <div className="detail-links">{event.official_url ? <a className="button secondary" href={event.official_url} target="_blank" rel="noreferrer">Official page ↗</a> : null}{event.ticket_url ? <a className="button" href={event.ticket_url} target="_blank" rel="noreferrer">Tickets ↗</a> : null}</div>
+        <div className="detail-links"><Link className="button" href={`/admin/publishing?event=${id}`}>Add to carousel</Link>{event.official_url ? <a className="button secondary" href={event.official_url} target="_blank" rel="noreferrer">Official page ↗</a> : null}{event.ticket_url ? <a className="button" href={event.ticket_url} target="_blank" rel="noreferrer">Tickets ↗</a> : null}</div>
       </header>
 
       {error ? <div className="error-card">{error}</div> : null}
@@ -190,3 +190,4 @@ export default function EventDetailPage() {
     </main>
   );
 }
+
