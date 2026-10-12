@@ -196,7 +196,7 @@ export default function MorningReview() {
           return (
             <article className="event-row" key={c.id}>
               <div>
-                <h3>{e.title}</h3>
+                <h3><Link href={`/admin/events/${c.event_id}`}>{e.title}</Link></h3>
                 <p>{fmt(e.start_at)} · {e.venues?.name || "Venue unknown"} · {e.is_free === true ? "Free" : e.is_free === false ? "Paid" : "Price unknown"}</p>
                 <p>{c.rationale}</p>
                 <Pill tone={c.verification_state === "supported" ? "good" : "warn"}>{c.verification_state}</Pill>
@@ -258,3 +258,4 @@ export default function MorningReview() {
     </main>
   );
 }
+
