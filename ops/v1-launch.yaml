@@ -9,15 +9,15 @@ sprint:
   base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
-  checkpoint_code_sha: 58f3ed7d882e75b7fba31d8ee22573e49f9291dd
+  checkpoint_code_sha: b2f232cf0bca52af3f5417453251f4f51f8b46ac
   current_gate: G4_release_candidate
-  last_checkpoint_at: "2026-10-12T16:25:00-06:00"
+  last_checkpoint_at: "2026-10-12T16:31:00-06:00"
   resume_from: >-
-    Run one timed phone pass on carousel 95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d:
-    open the preview, generate and download the four PNGs, and copy the caption.
-    Record whether the workflow completes in under five minutes, then confirm
-    no open P0/P1 defects and document rollback. Stop for Adam's production
-    go/no-go; do not merge, deploy production, or publish.
+    Retest mobile asset saving on carousel 95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d
+    against preview dpl_9dYiFVTAfvtrk5QhyrppUfG3AVap. Generate the four PNGs,
+    use Save / share all PNGs (or the individual buttons when the phone requires
+    it), and copy the caption. Record elapsed time and any failure. Stop for
+    Adam's production go/no-go; do not merge, deploy production, or publish.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -439,6 +439,10 @@ gates:
       - event-link preview dpl_EpTzWSs2DCiHP9SD9cEHhsHckLQr READY at code SHA 58f3ed7d
       - Adam confirmed all three selected event records approved through the linked desktop workflow
       - desktop link and approval workflow completed; under-five-minute phone timing remains unverified
+      - first phone pass completed in 1.5 minutes until PNG saving stalled
+      - mobile defect fixed with Blob-backed PNG files and native multi-file or single-file share/save fallback
+      - 15 publishing tests and full eight-route build pass after mobile save fix
+      - mobile-save preview dpl_9dYiFVTAfvtrk5QhyrppUfG3AVap READY at code SHA b2f232cf
     approved_by: null
     approved_at: null
 
