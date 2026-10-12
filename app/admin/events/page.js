@@ -207,7 +207,7 @@ export default function EventsPage() {
           const eventSources = sourcesFor(event);
           return <tr key={event.id} onClick={() => router.push(`/admin/events/${event.id}`)}>
             <td>{fmtDate(event.start_at)}</td>
-            <td><strong>{event.title}</strong></td>
+            <td><strong><Link href={`/admin/events/${event.id}`}>{event.title}</Link></strong></td>
             <td>{eventVenue?.name || "—"}<div className="sub">{eventVenue?.locality || "Unknown locality"}</div></td>
             <td>{eventSources.map(item => item.name).join(", ") || "—"}</td>
             <td>{categoriesFor(event).map(item => item.name).join(", ") || "—"}</td>
@@ -220,3 +220,4 @@ export default function EventsPage() {
     </main>
   );
 }
+
