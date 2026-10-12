@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { canTransition, carouselReadinessErrors, isInstagramUrl, normalizeContent, readinessErrors, transitionErrors } from "../lib/publishing-validation.mjs";
+import { buildCarouselSlides, eventFactLines, slideFilename } from "../lib/carousel-assets.mjs";
 
 const ready = { headline: "Tonight downtown", editorial_take: "Worth leaving the house for.", caption: "Tonight downtown.", display_facts: { date: "Oct 6", venue: "Plaza Theatre", locality: "El Paso" } };
 
@@ -49,5 +50,24 @@ test("carousel readiness requires title, caption, and 3 to 8 events", () => {
   assert.deepEqual(carouselReadinessErrors({ title: "Weekend picks", caption: "Three things worth leaving home for." }, 3), {});
   assert.equal(carouselReadinessErrors({ title: "Weekend picks", caption: "Caption" }, 9).events, "Choose no more than 8 events.");
   assert.equal(carouselReadinessErrors({ title: "Weekend picks", caption: "Caption" }, 3, 2).approval, "2 selected events still need data review.");
+});
+
+test("builds an ordered cover and event slide set from stored facts", () => {
+  const slides = buildCarouselSlides({ title: "Weekend picks", cover_kicker: "HEY NOW PICKS", instagram_handle: "@heynowelpaso" }, [
+    { title: "First event", start_at: "2026-10-17T23:00:00Z", venue: "Plaza Theatre", locality: "El Paso", is_free: true },
+    { title: "Second event", venue: "", locality: "" },
+  ]);
+  assert.equal(slides.length, 3);
+  assert.equal(slides[0].kind, "cover");
+  assert.equal(slides[1].title, "First event");
+  assert.equal(slides[1].price, "FREE");
+  assert.equal(slides[2].venue, "VENUE TBA");
+  assert.equal(slideFilename(0, slides[0]), "heynow-01-cover.png");
+});
+
+test("uses explicit unknown labels without inventing event facts", () => {
+  assert.deepEqual(eventFactLines({}), {
+    dateLine: "DATE TBA", timeLine: "TIME TBA", venue: "VENUE TBA", locality: "EL PASO", price: "PRICE NOT LISTED", age: "AGE NOT LISTED",
+  });
 });
 
