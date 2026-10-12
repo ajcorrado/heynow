@@ -9,15 +9,15 @@ sprint:
   base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
-  checkpoint_code_sha: 454cfece9ea9af2df23d2e2cb08af27093a2fa9b
+  checkpoint_code_sha: 58f3ed7d882e75b7fba31d8ee22573e49f9291dd
   current_gate: G4_release_candidate
-  last_checkpoint_at: "2026-10-12T16:16:00-06:00"
+  last_checkpoint_at: "2026-10-12T16:21:00-06:00"
   resume_from: >-
-    Complete G4 against preview deployment dpl_2hyWq6tj86z1ba8qMdrQz4vC7Nkz:
-    review and approve the three selected event records, time the mobile
-    create-to-download-and-copy workflow, confirm no open P0/P1 defects, and
-    record the rollback path. Stop for Adam's production go/no-go; do not merge
-    to main, deploy production, or publish to Instagram.
+    Open carousel 95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d on preview deployment
+    dpl_EpTzWSs2DCiHP9SD9cEHhsHckLQr. Follow each selected event's registry link,
+    review and approve its data, then time the mobile generate-download-copy
+    workflow. Confirm no open P0/P1 defects and document rollback. Stop for
+    Adam's production go/no-go; do not merge, deploy production, or publish.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -434,6 +434,9 @@ gates:
       - latest checkpoint preview dpl_2hyWq6tj86z1ba8qMdrQz4vC7Nkz READY at branch SHA 41745b31
       - G3 visual package approved by Adam
       - production remains unchanged at SHA 2d51061e
+      - canonical event-detail links added across carousel order, pending-review warnings, generated previews, event picker, Morning Review candidates, and registry table
+      - 15 publishing tests and full eight-route Next.js build pass after the link changes
+      - event-link preview dpl_EpTzWSs2DCiHP9SD9cEHhsHckLQr READY at code SHA 58f3ed7d
     approved_by: null
     approved_at: null
 
