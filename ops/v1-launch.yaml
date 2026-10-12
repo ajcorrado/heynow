@@ -10,14 +10,14 @@ sprint:
   production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
   release_candidate_sha: null
   checkpoint_code_sha: 454cfece9ea9af2df23d2e2cb08af27093a2fa9b
-  current_gate: G3_instagram_package
-  last_checkpoint_at: "2026-10-12T16:15:00-06:00"
+  current_gate: G4_release_candidate
+  last_checkpoint_at: "2026-10-12T16:16:00-06:00"
   resume_from: >-
-    Open preview deployment dpl_HyxbPK9zKLp1EeJMwS2guFqoFUvM on a mobile
-    browser, sign in as the existing admin, and open carousel
-    95c9cdd0-6645-48c4-a7d8-4b6e42a3cc5d. Generate the four ordered previews,
-    visually approve or request changes, download all PNGs, and copy the
-    caption. Do not merge to main, deploy production, or publish to Instagram.
+    Complete G4 against preview deployment dpl_2hyWq6tj86z1ba8qMdrQz4vC7Nkz:
+    review and approve the three selected event records, time the mobile
+    create-to-download-and-copy workflow, confirm no open P0/P1 defects, and
+    record the rollback path. Stop for Adam's production go/no-go; do not merge
+    to main, deploy production, or publish to Instagram.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -233,8 +233,8 @@ work_items:
     risk: low
     escalation: four expected SECURITY DEFINER advisor warnings are accepted because each RPC first asserts admin access and execution is revoked from anon and PUBLIC
     decision_needed: null
-    next_action: build and verify the G3 Instagram carousel asset stage
-    updated_at: "2026-10-12T15:55:00-06:00"
+    next_action: complete G4 release-candidate acceptance
+    updated_at: "2026-10-12T16:16:00-06:00"
 
 operational_incidents:
   - id: I1
@@ -280,7 +280,7 @@ operational_incidents:
       - carousel editor now exposes event selection, order, readiness blockers, and Return to draft
     blockers: []
     next_action: >-
-      Build and verify the G3 Instagram carousel asset stage.
+      Complete G4 release-candidate acceptance without changing production.
 
 attention_queue:
   - id: A1
@@ -404,7 +404,7 @@ gates:
     approved_at: "2026-10-12T15:55:00-06:00"
 
   - id: G3_instagram_package
-    status: in_progress
+    status: passed
     criteria:
       - exact_1080x1350_output
       - caption_copy_works_on_mobile
@@ -419,17 +419,21 @@ gates:
       - full Next.js production build passes all eight routes
       - preview dpl_HyxbPK9zKLp1EeJMwS2guFqoFUvM READY at code SHA 454cfece
       - protected preview route returns HTTP 200 for the saved G2 carousel
-    approved_by: null
-    approved_at: null
+      - Adam approved the generated package after authenticated preview review
+    approved_by: adam
+    approved_at: "2026-10-12T16:14:00-06:00"
 
   - id: G4_release_candidate
-    status: queued
+    status: in_progress
     criteria:
       - three_real_events_complete
       - mobile_workflow_under_five_minutes
       - no_open_P0_or_P1_defects
       - rollback_documented
-    evidence: []
+    evidence:
+      - latest checkpoint preview dpl_2hyWq6tj86z1ba8qMdrQz4vC7Nkz READY at branch SHA 41745b31
+      - G3 visual package approved by Adam
+      - production remains unchanged at SHA 2d51061e
     approved_by: null
     approved_at: null
 
