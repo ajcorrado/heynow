@@ -131,26 +131,47 @@ export default function PublishingEditorPage() {
     catch { setError("Could not copy the caption."); }
   }
 
-  function generateAssets() {
+  async function generateAssets() {
     setAssetBusy(true); setError(""); setMessage("");
     try {
       const slides = buildCarouselSlides(content, selected);
-      const rendered = slides.map((slide, index) => {
+      const rendered = await Promise.all(slides.map(async (slide, index) => {
         const canvas = document.createElement("canvas");
         renderCarouselSlide(canvas, slide, index, slides.length);
-        return { slide, filename: slideFilename(index, slide), url: canvas.toDataURL("image/png") };
-      });
+        const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("Could not create PNG.")), "image/png"));
+        return { slide, filename: slideFilename(index, slide), blob, url: URL.createObjectURL(blob) };
+      }));
+      assets.forEach(asset => URL.revokeObjectURL(asset.url));
       setAssets(rendered);
       setMessage(`${rendered.length} exact-size PNG previews generated.`);
     } catch (caught) { setError(caught.message || "Could not generate carousel assets."); }
     setAssetBusy(false);
   }
 
-  function downloadAsset(asset) {
+  async function downloadAsset(asset) {
+    const file = new File([asset.blob], asset.filename, { type: "image/png" });
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: asset.filename }); return; }
+      catch (caught) { if (caught.name === "AbortError") return; }
+    }
     const link = document.createElement("a");
     link.download = asset.filename;
     link.href = asset.url;
     link.click();
+  }
+
+  async function saveAllAssets() {
+    if (!assets.length) return;
+    const files = assets.map(asset => new File([asset.blob], asset.filename, { type: "image/png" }));
+    if (navigator.canShare?.({ files })) {
+      try { await navigator.share({ files, title: content.title || "HeyNow carousel" }); return; }
+      catch (caught) { if (caught.name === "AbortError") return; }
+    }
+    if (navigator.canShare?.({ files: [files[0]] })) {
+      setMessage("This phone saves one image at a time. Use each Save / share PNG button below.");
+      return;
+    }
+    assets.forEach((asset, index) => setTimeout(() => downloadAsset(asset), index * 250));
   }
 
   if (!draft && !error) return <main className="page-shell">Loading carousel…</main>;
@@ -175,7 +196,7 @@ export default function PublishingEditorPage() {
         </section>
 
         <section className="card asset-studio"><div className="section-heading"><div><h2>Instagram assets</h2><p className="muted">One cover plus one 1080×1350 PNG per event. Regenerate after editorial changes.</p></div><button disabled={assetBusy || !content.title || !selected.length} onClick={generateAssets}>{assetBusy ? "Generating…" : "Generate previews"}</button></div>
-          {!assets.length ? <div className="asset-empty">No assets generated yet. Missing photography uses HeyNow’s poster treatment.</div> : <div className="asset-grid">{assets.map((asset, index) => <article className="asset-preview" key={asset.filename}><img src={asset.url} alt={asset.slide.kind === "cover" ? "Carousel cover preview" : `${asset.slide.title} event slide preview`} /><div><strong>{index + 1}. {asset.slide.kind === "cover" ? "Cover" : <Link href={`/admin/events/${asset.slide.event_id}`}>{asset.slide.title}</Link>}</strong><button className="secondary compact" onClick={() => downloadAsset(asset)}>Download PNG</button></div></article>)}</div>}
+          {!assets.length ? <div className="asset-empty">No assets generated yet. Missing photography uses HeyNow’s poster treatment.</div> : <><div className="asset-save-all"><button onClick={saveAllAssets}>Save / share all PNGs</button><small className="muted">On phones, choose Save Images or Save to Files in the share sheet.</small></div><div className="asset-grid">{assets.map((asset, index) => <article className="asset-preview" key={asset.filename}><img src={asset.url} alt={asset.slide.kind === "cover" ? "Carousel cover preview" : `${asset.slide.title} event slide preview`} /><div><strong>{index + 1}. {asset.slide.kind === "cover" ? "Cover" : <Link href={`/admin/events/${asset.slide.event_id}`}>{asset.slide.title}</Link>}</strong><button className="secondary compact" onClick={() => downloadAsset(asset)}>Save / share PNG</button></div></article>)}</div></>}
         </section>
 
         {!locked ? <section className="card event-picker"><h2>Add upcoming events</h2><p className="muted">You can draft with pending events; every selection must be data-approved before Ready.</p><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search event or venue" /><div className="candidate-events">{visibleCandidates.slice(0, 80).map(item => <div className="candidate-event" key={item.event_id}><span><strong><Link href={`/admin/events/${item.event_id}`}>{item.title}</Link></strong><small>{formatDate(item.start_at)} · {item.venue || "Venue TBA"} · {item.data_review_state === "approved" ? "approved" : "needs review"}</small></span><button className="secondary compact" disabled={selectedIds.length >= 8} onClick={() => addEvent(item.event_id)}>+ Add</button></div>)}</div>{!visibleCandidates.length ? <p className="muted">No matching upcoming events.</p> : null}</section> : null}
