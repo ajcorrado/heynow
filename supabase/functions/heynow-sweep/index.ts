@@ -1,6 +1,7 @@
+import { scoreEventSignal } from "../_shared/event-signal.mjs";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const RUBRIC_VERSION = "morning-v1";
+const RUBRIC_VERSION = "signal-v1";
 const HORIZON_DAYS = 30;
 const MAX_SOURCES = 10;
 const MAX_SHORTLIST = 20;
@@ -306,7 +307,7 @@ Deno.serve(async (request) => {
     .eq("sweep_run_id", run.id);
   const { data: events } = await db
     .from("events")
-    .select("id,title,start_at,end_at,is_all_day,is_free,venue_id,venues(name,locality,region),event_editorial(data_review_state)")
+    .select("id,title,factual_description,start_at,end_at,is_all_day,is_free,hero_image_url,venue_id,venues(name,locality,region),event_editorial(data_review_state),event_sources(sources(source_roles,uniqueness_score))")
     .eq("city_id", city.id)
     .gte("start_at", new Date().toISOString())
     .lt("start_at", horizon)
@@ -314,21 +315,22 @@ Deno.serve(async (request) => {
     .limit(500);
 
   const eligible = (events || []).filter((event: any) => event.event_editorial?.data_review_state !== "rejected");
-  const total = (assessment: any) =>
-    assessment.local_relevance + assessment.distinctiveness + assessment.audience_fit + assessment.timeliness + assessment.usefulness;
   const ranked = eligible
-    .map((event: any) => ({ event, assessment: score(event) }))
-    .sort((a: any, b: any) => total(b.assessment) - total(a.assessment))
+    .map((event: any) => ({ event, assessment: scoreEventSignal(event) }))
+    .sort((a: any, b: any) => b.assessment.total_score - a.assessment.total_score)
     .slice(0, MAX_SHORTLIST);
 
   if (ranked.length) {
     await db.from("sweep_candidates").upsert(
-      ranked.map(({ event, assessment }: any) => ({
-        sweep_run_id: run.id,
-        event_id: event.id,
-        ...assessment,
-        rubric_version: RUBRIC_VERSION,
-      })),
+      ranked.map(({ event, assessment }: any) => {
+        const { total_score: _computedTotal, ...storedAssessment } = assessment;
+        return {
+          sweep_run_id: run.id,
+          event_id: event.id,
+          ...storedAssessment,
+          rubric_version: RUBRIC_VERSION,
+        };
+      }),
       { onConflict: "sweep_run_id,event_id", ignoreDuplicates: true },
     );
   }
