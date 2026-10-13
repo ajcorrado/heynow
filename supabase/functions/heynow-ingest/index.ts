@@ -35,7 +35,7 @@ type CanonicalEvent = {
   extractionConfidence: number;
 };
 
-type SourceDiscovery = { url: string; externalIdHint?: string; occurrenceDate?: string };
+type SourceDiscovery = { url: string; externalIdHint?: string; occurrenceDate?: string; metadata?: Record<string, string | null> };
 type SourceAdapter = { key: string; name: string; discover(): Promise<SourceDiscovery[]>; fetchAndNormalize(item: SourceDiscovery): Promise<CanonicalEvent | null> };
 type SupabaseLike = any;
 
@@ -421,6 +421,99 @@ function tpwdAdapter(config:TpwdAdapterConfig): SourceAdapter {
 }
 const franklinMountainsAdapter=tpwdAdapter({key:"franklin-mountains-tpwd",name:"Franklin Mountains State Park Events",index:"https://tpwd.texas.gov/state-parks/franklin-mountains/park_events",calendarPath:"/calendar/franklin-mountains",venueName:"Franklin Mountains State Park"});
 const huecoTanksAdapter=tpwdAdapter({key:"hueco-tanks-tpwd",name:"Hueco Tanks State Park Events",index:"https://tpwd.texas.gov/state-parks/hueco-tanks/park_events/",calendarPath:"/calendar/hueco-tanks",venueName:"Hueco Tanks State Park & Historic Site"});
+
+
+const EPMA_SOURCE_KEY = "epma-calendar";
+const EPMA_INDEX = "https://epma.art/calendar";
+function parseLooseClock(value:string, assumedAp:string|null=null) {
+  const match=value.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*([AP]M)?$/i);
+  if(!match) return null;
+  let hour=Number(match[1]); const minute=Number(match[2] ?? "0"); const ap=(match[3] ?? assumedAp)?.toUpperCase() ?? null;
+  if(ap){if(hour===12)hour=0;if(ap==="PM")hour+=12;}
+  if(hour>23 || minute>59) return null;
+  return String(hour).padStart(2,"0")+":"+String(minute).padStart(2,"0")+":00";
+}
+function parseLooseTimeRange(value:string|null) {
+  if(!value) return {start:null as string|null,end:null as string|null};
+  const first=value.split(/\band\b/i)[0].replace(/[–—]/g,"-").replace(/\bto\b/i,"-");
+  const range=first.match(/(\d{1,2}(?::\d{2})?\s*(?:[AP]M)?)\s*-\s*(\d{1,2}(?::\d{2})?\s*(?:[AP]M)?)/i);
+  if(!range){
+    const single=first.match(/\b(\d{1,2}(?::\d{2})?\s*[AP]M)\b/i);
+    return {start:single ? parseLooseClock(single[1]) : null,end:null};
+  }
+  const endAp=range[2].match(/([AP]M)/i)?.[1] ?? null;
+  const startHour=Number(range[1].match(/\d{1,2}/)?.[0] ?? "0");
+  const endHour=Number(range[2].match(/\d{1,2}/)?.[0] ?? "0");
+  const startHasAp=/[AP]M/i.test(range[1]);
+  let startAp=endAp;
+  if(!startHasAp && endAp?.toUpperCase()==="PM" && startHour!==12 && startHour>endHour) startAp="AM";
+  return {start:parseLooseClock(range[1],startAp),end:parseLooseClock(range[2],endAp)};
+}
+function discoverEpmaEvents(html:string):SourceDiscovery[]{
+  const found=new Map<string,SourceDiscovery>();
+  for(const match of html.matchAll(/<section class=["']pt30 component--event listing-class["']>([\s\S]*?)<\/section>/gi)){
+    const block=match[1];
+    const titleMatch=block.match(/<div class=["']title-large["']>\s*<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+    if(!titleMatch) continue;
+    const url=absoluteUrl(decodeHtml(titleMatch[1]),EPMA_INDEX); if(!url) continue;
+    const sourceDate=url.match(/-(\d{4}-\d{2}-\d{2})(?:\/?$|[?#])/)?.[1] ?? null; if(!sourceDate) continue;
+    const image=decodeHtml(block.match(/<img[^>]*src=["']([^"']+)["']/i)?.[1] ?? "") || null;
+    const category=stripTags(block.match(/<div class=["']status["']>([\s\S]*?)<\/div>/i)?.[1] ?? "") || null;
+    const dateText=stripTags(block.match(/<div class=["']event-date["']>([\s\S]*?)<\/div>/i)?.[1] ?? "") || null;
+    const timeText=stripTags(block.match(/<div class=["']event-time["']>([\s\S]*?)<\/div>/i)?.[1] ?? "") || null;
+    const ticket=absoluteUrl(decodeHtml(block.match(/<a[^>]*href=["']([^"']*doubleknot[^"']*)["']/i)?.[1] ?? ""),EPMA_INDEX);
+    found.set(url,{url,externalIdHint:url,occurrenceDate:sourceDate,metadata:{title:stripTags(titleMatch[2]),category,dateText,timeText,image,ticket,block}});
+  }
+  return [...found.values()];
+}
+function parseEpmaEvent(html:string,item:SourceDiscovery):CanonicalEvent|null{
+  const sourceDate=item.occurrenceDate; const meta=item.metadata ?? {}; if(!sourceDate || !meta.title) return null;
+  const times=parseLooseTimeRange(meta.timeText ?? null);
+  let startAt:string; try{startAt=localDateTimeToUtc(sourceDate+(times.start ? "T"+times.start : ""),"America/Denver");}catch{return null;}
+  let endAt:string|null=null;
+  if(times.end){try{endAt=localDateTimeToUtc(sourceDate+"T"+times.end,"America/Denver");if(new Date(endAt)<=new Date(startAt))endAt=null;}catch{}}
+  const body=html.match(/<div class=["']post-single cms-content["']>([\s\S]*?)<\/div>\s*<\/div>/i)?.[1] ?? "";
+  const description=stripTags(body).replace(meta.title,"").trim() || [meta.dateText,meta.timeText].filter(Boolean).join(" · ") || null;
+  const tuition=stripTags(body).match(/\bTuition:\s*([^.;]+)/i)?.[1]?.trim() ?? null;
+  const ticket=absoluteUrl(decodeHtml(html.match(/<a[^>]*href=["']([^"']*doubleknot[^"']*)["']/i)?.[1] ?? meta.ticket ?? ""),item.url);
+  return {sourceKey:EPMA_SOURCE_KEY,sourceExternalId:item.externalIdHint ?? item.url,sourceUrl:item.url,title:meta.title,description,category:"Arts & Culture",tags:["art",normalizeText(meta.category ?? "museum")],startAt,endAt,timezone:"America/Denver",isAllDay:!times.start,venue:{name:"El Paso Museum of Art",address:"1 Arts Festival Plaza, El Paso, TX 79901",city:"El Paso",region:"TX",postalCode:"79901",latitude:null,longitude:null},imageUrl:meta.image ?? metaContent(html,"og:image"),eventUrl:item.url,officialUrl:item.url,ticketUrl:ticket,admissionText:tuition,isFree:tuition ? /^free\b/i.test(tuition) : null,ingestedAt:new Date().toISOString(),rawText:html,rawPayload:{sourceDate,dateText:meta.dateText,timeText:meta.timeText,sourceCategory:meta.category},extractionConfidence:0.94};
+}
+const epmaAdapter:SourceAdapter={key:EPMA_SOURCE_KEY,name:"El Paso Museum of Art Calendar",async discover(){const res=await fetch(EPMA_INDEX,{headers:genericHeaders});if(!res.ok)throw new Error("EPMA discovery failed: "+res.status);return discoverEpmaEvents(await res.text());},async fetchAndNormalize(item){const res=await fetch(item.url,{headers:genericHeaders});if(!res.ok)throw new Error("EPMA event fetch failed "+res.status+": "+item.url);return parseEpmaEvent(await res.text(),item);}};
+
+const crosslandBaseAdapter=genericAdapter({key:"crossland-gallery",name:"Crossland Gallery",index:"https://elpasoartassociation.com/new-events",linkPattern:/elpasoartassociation\.com\/new-events\/\d{4}\//i,defaultVenue:{name:"Crossland Gallery",address:"500 W Paisano Dr, El Paso, TX 79901",city:"El Paso",region:"TX",postalCode:"79901",latitude:null,longitude:null}});
+const crosslandAdapter:SourceAdapter={...crosslandBaseAdapter,async fetchAndNormalize(item){const event=await crosslandBaseAdapter.fetchAndNormalize(item);if(!event)return null;if(/\b(?:deadline|drop[- ]?off|pick[- ]?up|close of show)\b/i.test(event.title))return null;if(new Date(event.endAt ?? event.startAt).getTime()<Date.now()-43200000)return null;return {...event,category:"Arts & Culture",tags:["art","gallery"],venue:{...event.venue,name:"Crossland Gallery",address:event.venue.address ?? "500 W Paisano Dr, El Paso, TX 79901",city:"El Paso",region:"TX",postalCode:"79901"},isFree:event.isFree ?? true,admissionText:event.admissionText ?? "Free"};}};
+
+const RUBIN_SOURCE_KEY="rubin-center";
+const RUBIN_INDEX="https://www.utep.edu/rubin/news/current-calendar-events.html";
+function displayRubinTitle(value:string){return value===value.toLowerCase() ? value.charAt(0).toUpperCase()+value.slice(1) : value;}
+function discoverRubinEvents(html:string):SourceDiscovery[]{
+  const found:SourceDiscovery[]=[]; const now=partsFor(new Date(),"America/Denver");
+  for(const match of html.matchAll(/<tr>([\s\S]*?)<\/tr>/gi)){
+    const block=match[1]; const mmdd=stripTags(block.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? "");
+    const dm=mmdd.match(/^(\d{1,2})\/(\d{1,2})$/); if(!dm)continue;
+    const title=displayRubinTitle(stripTags(block.match(/<h3[^>]*>([\s\S]*?)<\/h3>/i)?.[1] ?? "")); if(!title || /\bclosed\b/i.test(title))continue;
+    let year=now.year; const month=Number(dm[1]),day=Number(dm[2]);
+    const candidate=Date.UTC(year,month-1,day); const today=Date.UTC(now.year,now.month-1,now.day);
+    if(candidate<today-120*86400000)year+=1;
+    const sourceDate=String(year)+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+    const text=stripTags(block); const timeMatch=text.match(/(\d{1,2}(?::\d{2})?\s*(?:[AP]M)?)\s*(?:-|–|—|to)\s*(\d{1,2}(?::\d{2})?\s*[AP]M)/i) ?? text.match(/\b(\d{1,2}(?::\d{2})?\s*[AP]M)\b/i);
+    const timeText=timeMatch?.[0] ?? null; const href=block.match(/<a[^>]*href=["']([^"']+)["']/i)?.[1] ?? null;
+    const url=href ? absoluteUrl(decodeHtml(href),RUBIN_INDEX) ?? RUBIN_INDEX : RUBIN_INDEX;
+    const id=RUBIN_INDEX+"#"+sourceDate+"-"+normalizeText(title).replace(/\s+/g,"-");
+    found.push({url,externalIdHint:id,occurrenceDate:sourceDate,metadata:{title,timeText,description:text,block}});
+  }
+  return found;
+}
+async function parseRubinEvent(item:SourceDiscovery):Promise<CanonicalEvent|null>{
+  const meta=item.metadata ?? {}; const sourceDate=item.occurrenceDate; if(!meta.title || !sourceDate)return null;
+  const times=parseLooseTimeRange(meta.timeText ?? null); let startAt:string;
+  try{startAt=localDateTimeToUtc(sourceDate+(times.start ? "T"+times.start : ""),"America/Denver");}catch{return null;}
+  if(new Date(startAt).getTime()<Date.now()-43200000)return null;
+  let endAt:string|null=null;if(times.end){try{endAt=localDateTimeToUtc(sourceDate+"T"+times.end,"America/Denver");if(new Date(endAt)<=new Date(startAt))endAt=null;}catch{}}
+  let detailHtml="";if(item.url!==RUBIN_INDEX){try{const res=await fetch(item.url,{headers:genericHeaders});if(res.ok)detailHtml=await res.text();}catch{}}
+  return {sourceKey:RUBIN_SOURCE_KEY,sourceExternalId:item.externalIdHint ?? item.url,sourceUrl:item.url,title:meta.title,description:meta.description ?? null,category:"Arts & Culture",tags:["art","museum","free"],startAt,endAt,timezone:"America/Denver",isAllDay:!times.start,venue:{name:"Rubin Center for the Visual Arts",address:"500 W University Ave, El Paso, TX 79968",city:"El Paso",region:"TX",postalCode:"79968",latitude:null,longitude:null},imageUrl:detailHtml ? metaContent(detailHtml,"og:image") : null,eventUrl:item.url,officialUrl:item.url,ticketUrl:null,admissionText:"Free and open to the public",isFree:true,ingestedAt:new Date().toISOString(),rawText:detailHtml || meta.block || "",rawPayload:{sourceDate,timeText:meta.timeText},extractionConfidence:0.93};
+}
+const rubinAdapter:SourceAdapter={key:RUBIN_SOURCE_KEY,name:"Rubin Center for the Visual Arts",async discover(){const res=await fetch(RUBIN_INDEX,{headers:genericHeaders});if(!res.ok)throw new Error("Rubin Center discovery failed: "+res.status);return discoverRubinEvents(await res.text());},fetchAndNormalize:parseRubinEvent};
 
 const CITY_EVENTS_SOURCE_KEY = "city-el-paso-events";
 const CITY_EVENTS_INDEX = "https://events.elpasotexas.gov/?count=50";
@@ -853,6 +946,6 @@ async function runIngestion(supabase:SupabaseLike, adapter:SourceAdapter, option
     const processed=extracted.filter((x)=>x.event).length; const emptyExtraction=slice.length>0&&processed===0; const status=emptyExtraction?"failed":errors.length===0?"success":processed>0?"partial":"failed"; const runErrors=emptyExtraction&&errors.length===0?[{message:"Discovered event links but extracted no canonical events"}]:errors; const finishedAt=new Date().toISOString(); await supabase.from("source_runs").update({status,finished_at:finishedAt,observations_found:processed,events_created:created,events_matched:matched,error_count:runErrors.length,error_details:runErrors.slice(0,100),metadata:{adapter:adapter.key,total_discovered:discovered.length,requested_offset:offset,requested_limit:limit,skipped_non_events:skipped,dry_run:Boolean(options.dryRun),source_matches:sourceMatched,dedupe_matches:dedupeMatched,proposed_changes:proposalsCreated,duration_ms:Date.now()-started}}).eq("id",run.id); await supabase.from("sources").update({last_checked_at:finishedAt,...(status!=="failed"?{last_success_at:finishedAt}:{})}).eq("id",source.id); return {runId:run.id,status,totalDiscovered:discovered.length,attempted:slice.length,extracted:processed,created,matched,skipped,proposalsCreated,errors:runErrors.slice(0,25),examples,durationMs:Date.now()-started};
   } catch(error){const message=error instanceof Error?error.message:String(error);await supabase.from("source_runs").update({status:"failed",finished_at:new Date().toISOString(),error_count:errors.length+1,error_details:[...errors,{message}].slice(0,100),metadata:{adapter:adapter.key,duration_ms:Date.now()-started}}).eq("id",run.id);await supabase.from("sources").update({last_checked_at:new Date().toISOString()}).eq("id",source.id);throw error;}
 }
-const adapters=new Map([[visitElPasoAdapter.key,visitElPasoAdapter],[ktepAdapter.key,ktepAdapter],[elPasoLiveAdapter.key,elPasoLiveAdapter],[loveBuzzAdapter.key,loveBuzzAdapter],[lowbrowAdapter.key,lowbrowAdapter],[falstaffAdapter.key,falstaffAdapter],[versoAdapter.key,versoAdapter],[cityEventsAdapter.key,cityEventsAdapter],[franklinMountainsAdapter.key,franklinMountainsAdapter],[huecoTanksAdapter.key,huecoTanksAdapter]]);
+const adapters=new Map([[visitElPasoAdapter.key,visitElPasoAdapter],[ktepAdapter.key,ktepAdapter],[elPasoLiveAdapter.key,elPasoLiveAdapter],[loveBuzzAdapter.key,loveBuzzAdapter],[lowbrowAdapter.key,lowbrowAdapter],[falstaffAdapter.key,falstaffAdapter],[versoAdapter.key,versoAdapter],[epmaAdapter.key,epmaAdapter],[crosslandAdapter.key,crosslandAdapter],[rubinAdapter.key,rubinAdapter],[cityEventsAdapter.key,cityEventsAdapter],[franklinMountainsAdapter.key,franklinMountainsAdapter],[huecoTanksAdapter.key,huecoTanksAdapter]]);
 Deno.serve(async(request)=>{if(request.method!=="POST")return Response.json({error:"method_not_allowed"},{status:405});try{const body=await request.json().catch(()=>({}));const sourceKey=typeof body.sourceKey==="string"?body.sourceKey:"visit-el-paso";const adapter=adapters.get(sourceKey);if(!adapter)return Response.json({error:"unknown_source",sourceKey},{status:400});const supabase=createClient(Deno.env.get("SUPABASE_URL")??"",Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"",{auth:{persistSession:false,autoRefreshToken:false}});const result=await runIngestion(supabase,adapter,{limit:typeof body.limit==="number"?body.limit:50,offset:typeof body.offset==="number"?body.offset:undefined,dryRun:body.dryRun===true,concurrency:typeof body.concurrency==="number"?body.concurrency:undefined,sweepRunId:typeof body.sweepRunId==="string"?body.sweepRunId:null});return Response.json(result);}catch(error){console.error(error);return Response.json({error:error instanceof Error?error.message:String(error)},{status:500});}});
 
