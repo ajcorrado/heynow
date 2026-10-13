@@ -371,6 +371,57 @@ const loveBuzzAdapter: SourceAdapter = {
 };
 const versoAdapter = genericAdapter({ key: "verso", name: "VERSO", index: "https://www.versoelpaso.com/", linkPattern: /versoelpaso\.com\/event-details\//i, defaultVenue: { name: "VERSO", address: "2711 N Stanton St, El Paso, TX 79902", city: "El Paso", region: "TX", postalCode: "79902", latitude: null, longitude: null } });
 
+type TpwdAdapterConfig = { key:string; name:string; index:string; calendarPath:string; venueName:string };
+function discoverTpwdEvents(html:string, config:TpwdAdapterConfig): SourceDiscovery[] {
+  const found = new Map<string, SourceDiscovery>();
+  for (const match of html.matchAll(/href=["']([^"']+)["']/gi)) {
+    const url = absoluteUrl(decodeHtml(match[1]), config.index);
+    if (!url) continue;
+    const parsed = new URL(url);
+    if (!parsed.pathname.toLowerCase().startsWith(config.calendarPath.toLowerCase() + "/")) continue;
+    if (/\/(?:rss|ics_view)$/i.test(parsed.pathname)) continue;
+    const clean = parsed.origin + parsed.pathname.replace(/\/$/, "");
+    found.set(clean, { url:clean, externalIdHint:clean });
+  }
+  return [...found.values()];
+}
+function tpwdDateTime(html:string, className:string) {
+  const regex = new RegExp('<span\\b[^>]*class=["\'][^"\']*\\b' + className + '\\b[^"\']*["\'][^>]*title=["\'](\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(?:Z|[+-]\\d{2}:?\\d{2})?["\']', 'i');
+  return html.match(regex)?.[1] ?? null;
+}
+function parseTpwdEvent(html:string, item:SourceDiscovery, config:TpwdAdapterConfig): CanonicalEvent | null {
+  const title = stripTags(html.match(/<h1\b[^>]*id=["']parent-fieldname-title["'][^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? "");
+  const sourceStart = tpwdDateTime(html, "dtstart");
+  if (!title || !sourceStart) return null;
+  let startAt:string;
+  try { startAt = localDateTimeToUtc(sourceStart, "America/Denver"); } catch { return null; }
+  const sourceEnd = tpwdDateTime(html, "dtend");
+  let endAt:string|null = null;
+  if (sourceEnd) { try { endAt = localDateTimeToUtc(sourceEnd, "America/Denver"); } catch {} }
+  const body = html.match(/<div\b[^>]*id=["']eventBodyText["'][^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>|<div\b[^>]*id=["']viewlet-below-content)/i)?.[1] ?? "";
+  const description = stripTags(body) || null;
+  const fee = description?.match(/\bFee\s*:\s*([^.;]+)/i)?.[1]?.trim() ?? null;
+  return {
+    sourceKey:config.key, sourceExternalId:item.externalIdHint ?? item.url, sourceUrl:item.url,
+    title, description, category:"Outdoors", tags:["outdoors","state park"],
+    startAt, endAt, timezone:"America/Denver", isAllDay:false,
+    venue:{name:config.venueName,address:null,city:"El Paso",region:"TX",postalCode:null,latitude:null,longitude:null},
+    imageUrl:metaContent(html,"og:image"), eventUrl:item.url, officialUrl:item.url, ticketUrl:null,
+    admissionText:fee, isFree:fee ? /^free\b/i.test(fee) : null,
+    ingestedAt:new Date().toISOString(), rawText:html,
+    rawPayload:{sourceStart,sourceEnd,fee}, extractionConfidence:0.96
+  };
+}
+function tpwdAdapter(config:TpwdAdapterConfig): SourceAdapter {
+  return {
+    key:config.key,name:config.name,
+    async discover(){const res=await fetch(config.index,{headers:genericHeaders});if(!res.ok)throw new Error(`${config.name} discovery failed: ${res.status}`);return discoverTpwdEvents(await res.text(),config);},
+    async fetchAndNormalize(item){const res=await fetch(item.url,{headers:genericHeaders});if(!res.ok)throw new Error(`${config.name} event fetch failed ${res.status}: ${item.url}`);return parseTpwdEvent(await res.text(),item,config);}
+  };
+}
+const franklinMountainsAdapter=tpwdAdapter({key:"franklin-mountains-tpwd",name:"Franklin Mountains State Park Events",index:"https://tpwd.texas.gov/state-parks/franklin-mountains/park_events",calendarPath:"/calendar/franklin-mountains",venueName:"Franklin Mountains State Park"});
+const huecoTanksAdapter=tpwdAdapter({key:"hueco-tanks-tpwd",name:"Hueco Tanks State Park Events",index:"https://tpwd.texas.gov/state-parks/hueco-tanks/park_events/",calendarPath:"/calendar/hueco-tanks",venueName:"Hueco Tanks State Park & Historic Site"});
+
 const CITY_EVENTS_SOURCE_KEY = "city-el-paso-events";
 const CITY_EVENTS_INDEX = "https://events.elpasotexas.gov/?count=50";
 function discoverCityEvents(html: string): SourceDiscovery[] {
@@ -802,6 +853,6 @@ async function runIngestion(supabase:SupabaseLike, adapter:SourceAdapter, option
     const processed=extracted.filter((x)=>x.event).length; const emptyExtraction=slice.length>0&&processed===0; const status=emptyExtraction?"failed":errors.length===0?"success":processed>0?"partial":"failed"; const runErrors=emptyExtraction&&errors.length===0?[{message:"Discovered event links but extracted no canonical events"}]:errors; const finishedAt=new Date().toISOString(); await supabase.from("source_runs").update({status,finished_at:finishedAt,observations_found:processed,events_created:created,events_matched:matched,error_count:runErrors.length,error_details:runErrors.slice(0,100),metadata:{adapter:adapter.key,total_discovered:discovered.length,requested_offset:offset,requested_limit:limit,skipped_non_events:skipped,dry_run:Boolean(options.dryRun),source_matches:sourceMatched,dedupe_matches:dedupeMatched,proposed_changes:proposalsCreated,duration_ms:Date.now()-started}}).eq("id",run.id); await supabase.from("sources").update({last_checked_at:finishedAt,...(status!=="failed"?{last_success_at:finishedAt}:{})}).eq("id",source.id); return {runId:run.id,status,totalDiscovered:discovered.length,attempted:slice.length,extracted:processed,created,matched,skipped,proposalsCreated,errors:runErrors.slice(0,25),examples,durationMs:Date.now()-started};
   } catch(error){const message=error instanceof Error?error.message:String(error);await supabase.from("source_runs").update({status:"failed",finished_at:new Date().toISOString(),error_count:errors.length+1,error_details:[...errors,{message}].slice(0,100),metadata:{adapter:adapter.key,duration_ms:Date.now()-started}}).eq("id",run.id);await supabase.from("sources").update({last_checked_at:new Date().toISOString()}).eq("id",source.id);throw error;}
 }
-const adapters=new Map([[visitElPasoAdapter.key,visitElPasoAdapter],[ktepAdapter.key,ktepAdapter],[elPasoLiveAdapter.key,elPasoLiveAdapter],[loveBuzzAdapter.key,loveBuzzAdapter],[lowbrowAdapter.key,lowbrowAdapter],[falstaffAdapter.key,falstaffAdapter],[versoAdapter.key,versoAdapter],[cityEventsAdapter.key,cityEventsAdapter]]);
+const adapters=new Map([[visitElPasoAdapter.key,visitElPasoAdapter],[ktepAdapter.key,ktepAdapter],[elPasoLiveAdapter.key,elPasoLiveAdapter],[loveBuzzAdapter.key,loveBuzzAdapter],[lowbrowAdapter.key,lowbrowAdapter],[falstaffAdapter.key,falstaffAdapter],[versoAdapter.key,versoAdapter],[cityEventsAdapter.key,cityEventsAdapter],[franklinMountainsAdapter.key,franklinMountainsAdapter],[huecoTanksAdapter.key,huecoTanksAdapter]]);
 Deno.serve(async(request)=>{if(request.method!=="POST")return Response.json({error:"method_not_allowed"},{status:405});try{const body=await request.json().catch(()=>({}));const sourceKey=typeof body.sourceKey==="string"?body.sourceKey:"visit-el-paso";const adapter=adapters.get(sourceKey);if(!adapter)return Response.json({error:"unknown_source",sourceKey},{status:400});const supabase=createClient(Deno.env.get("SUPABASE_URL")??"",Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"",{auth:{persistSession:false,autoRefreshToken:false}});const result=await runIngestion(supabase,adapter,{limit:typeof body.limit==="number"?body.limit:50,offset:typeof body.offset==="number"?body.offset:undefined,dryRun:body.dryRun===true,concurrency:typeof body.concurrency==="number"?body.concurrency:undefined,sweepRunId:typeof body.sweepRunId==="string"?body.sweepRunId:null});return Response.json(result);}catch(error){console.error(error);return Response.json({error:error instanceof Error?error.message:String(error)},{status:500});}});
 
