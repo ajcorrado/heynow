@@ -1,0 +1,58 @@
+initiative: signal-engine-v1
+status: in_progress
+updated_at: 2026-10-12T18:18:00-06:00
+production_baseline: 93bc46bf90df75ad47cfeb07210a450eacfcec5f
+branch: signal-engine-v1
+objective: Improve the editorial inbox from source-volume noise to diverse, explainable local signal.
+runtime:
+  supabase_project: abxqhtwkabrblyrefsys
+  heynow_ingest_version: 8
+  heynow_sweep_version: 10
+  scheduled_sweep_enabled: false
+verified_active_sources:
+  - Visit El Paso
+  - KTEP Community Calendar
+  - City of El Paso Events
+  - The Falstaff Happenings
+  - VERSO
+failing_sources:
+  - name: El Paso Live
+    evidence: Discovered links but extracted zero canonical events.
+  - name: Love Buzz
+    evidence: Songkick discovery succeeded but sampled detail pages extracted zero canonical events.
+  - name: Lowbrow Palace Calendar
+    evidence: Live discovery returned HTTP 403.
+first_ingestion:
+  city_of_el_paso:
+    status: partial
+    extracted: 50
+    created: 47
+    matched: 1
+    errors: 2
+  falstaff:
+    status: success
+    extracted: 34
+    created: 34
+  verso:
+    status: success
+    extracted: 6
+    created: 6
+ranking:
+  rubric: signal-v1
+  dimensions:
+    - local_relevance
+    - distinctiveness
+    - audience_fit
+    - timeliness
+    - usefulness
+  protections:
+    - recurring commodity formats do not inherit a source-level edge score
+    - repeated normalized titles collapse to one shortlist candidate
+    - only verified-active adapters enter a sweep
+verification:
+  tests: 18_passed
+  next_build: passed
+  city_adapter_dry_run: 4_of_4_extracted
+  verso_dry_run: 3_of_3_extracted
+  falstaff_dry_run: 2_of_3_extracted
+next_gate: Run one authenticated manual sweep and review the resulting 20-item shortlist in the admin UI before enabling any schedule.

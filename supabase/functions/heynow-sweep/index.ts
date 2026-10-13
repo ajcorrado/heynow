@@ -150,6 +150,7 @@ Deno.serve(async (request) => {
     .select("id,name,parser_key,adapter_status,requires_login,requires_browser,active,priority_tier,priority")
     .eq("city_id", city.id)
     .eq("active", true)
+    .eq("adapter_status", "active")
     .in("priority_tier", ["P0", "P1"])
     .order("priority", { ascending: false });
 
@@ -205,6 +206,7 @@ Deno.serve(async (request) => {
       "lowbrow-palace",
       "the-falstaff",
       "verso",
+      "city-el-paso-events",
     ].includes(source.parser_key);
 
     const { data: item } = await db
@@ -315,10 +317,16 @@ Deno.serve(async (request) => {
     .limit(500);
 
   const eligible = (events || []).filter((event: any) => event.event_editorial?.data_review_state !== "rejected");
-  const ranked = eligible
+  const scored = eligible
     .map((event: any) => ({ event, assessment: scoreEventSignal(event) }))
-    .sort((a: any, b: any) => b.assessment.total_score - a.assessment.total_score)
-    .slice(0, MAX_SHORTLIST);
+    .sort((a: any, b: any) => b.assessment.total_score - a.assessment.total_score || new Date(a.event.start_at).getTime() - new Date(b.event.start_at).getTime());
+  const seenTitles = new Set<string>();
+  const ranked = scored.filter(({ event }: any) => {
+    const key = String(event.title || "").normalize("NFKD").toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+    if (!key || seenTitles.has(key)) return false;
+    seenTitles.add(key);
+    return true;
+  }).slice(0, MAX_SHORTLIST);
 
   if (ranked.length) {
     await db.from("sweep_candidates").upsert(
@@ -362,3 +370,4 @@ Deno.serve(async (request) => {
 
   return json({ run: completed, shortlistCount: ranked.length, exceptions });
 });
+

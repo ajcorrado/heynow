@@ -1,9 +1,9 @@
 # HeyNow — Current Project State
 
-**Last reconciled:** 2026-10-07 18:21 MT  
+**Last reconciled:** 2026-10-12 18:18 MT  
 **Canonical repository:** `ajcorrado/heynow`  
 **Production branch:** `main`  
-**Current active development branch:** `launch/instagram-v1`
+**Current active development branch:** `signal-engine-v1`
 
 This file is the starting point for any human or AI working on HeyNow.
 
@@ -59,17 +59,17 @@ Preserve these unless Adam explicitly changes them or new implementation evidenc
 
 `main` remains the production baseline at:
 
-`2d51061e95aae3441f9d6e1fd7b1b0ee5da76939`
+`93bc46bf90df75ad47cfeb07210a450eacfcec5f`
 
 Do not assume development work has been merged to `main`.
 
-### Active launch branch
+### Active development branch
 
-Current Instagram launch work is on:
+Current signal-quality work is on:
 
-`launch/instagram-v1`
+`signal-engine-v1`
 
-At the October 7 reconciliation, this branch contains the Publishing Desk and current Morning Sweep mitigation work and is ahead of `main`.
+Instagram Publishing V1 is complete and live. The current branch adds verified source adapters and explainable event-level signal ranking. Detailed execution state is in `ops/signal-engine-v1.yaml`.
 
 Before making changes:
 

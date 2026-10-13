@@ -9,10 +9,13 @@ export function scoreEventSignal(event, now = new Date()) {
   const daysAway = (new Date(event.start_at).getTime() - now.getTime()) / 86400000;
   const complete = Boolean(text(event.title) && event.start_at && text(venue.name));
   const rich = Boolean(text(event.factual_description) || text(event.hero_image_url));
+  const eventText = `${text(event.title)} ${text(event.factual_description)}`;
+  const commodity = /\b(class(?:es)?|meeting|storytime|yoga|boxing|rewards?|savings?|karaoke|open mic|happy hour|weekly|monthly)\b/i.test(eventText);
+  const cultural = /\b(exhibit(?:ion)?|festival|market|workshop|reading|poetry|theat(?:re|er)|concert|live|launch|artist|art|dance|film|comedy|performance|tour|talk)\b/i.test(eventText);
 
   const local_relevance = text(venue.locality).toLowerCase() === "el paso" ? 2 : 1;
-  const distinctiveness = uniqueness >= 4 || roles.has("edge") ? 2 : uniqueness >= 2 ? 1 : 0;
-  const audience_fit = text(event.category) || (event.tags || []).length || roles.has("edge") ? 2 : 1;
+  const distinctiveness = commodity ? 0 : uniqueness >= 4 || roles.has("edge") ? 2 : uniqueness >= 2 ? 1 : 0;
+  const audience_fit = commodity ? 0 : cultural ? 2 : rich ? 1 : 0;
   const timeliness = daysAway >= 0 && daysAway <= 7 ? 2 : daysAway <= 30 ? 1 : 0;
   const usefulness = complete && rich ? 2 : complete ? 1 : 0;
   const total_score = local_relevance + distinctiveness + audience_fit + timeliness + usefulness;
@@ -23,6 +26,7 @@ export function scoreEventSignal(event, now = new Date()) {
   if (audience_fit === 2) reasons.push("clear audience fit");
   if (timeliness === 2) reasons.push("happening within seven days");
   if (usefulness === 2) reasons.push("strong factual and visual detail");
+  if (commodity) reasons.push("recurring or commodity format");
   if (!complete) reasons.push("missing a material fact");
 
   return {

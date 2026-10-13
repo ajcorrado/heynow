@@ -18,3 +18,16 @@ test("missing material facts cannot receive a high usefulness score", () => {
   assert.equal(result.usefulness, 0);
 });
 
+test("commodity recurring events do not inherit an edge source's full score", () => {
+  const assessment = scoreEventSignal({
+    title: "Weekly Yoga Class",
+    factual_description: "A recurring weekly class.",
+    start_at: "2026-10-14T18:00:00.000Z",
+    venues: { name: "Neighborhood Center", locality: "El Paso" },
+    event_sources: [{ sources: { source_roles: ["edge"], uniqueness_score: 5 } }],
+  }, now);
+  assert.equal(assessment.distinctiveness, 0);
+  assert.equal(assessment.audience_fit, 0);
+  assert.match(assessment.rationale, /commodity/i);
+});
+

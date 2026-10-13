@@ -1,5 +1,4 @@
--- Activate only adapters already implemented in heynow-ingest. Each remains
--- subject to live extraction verification before production scheduling.
+-- Activate only adapters already implemented and verified against live pages.
 update public.sources
 set parser_key = case name
       when 'El Paso Live' then 'el-paso-live'
@@ -8,9 +7,18 @@ set parser_key = case name
       when 'The Falstaff Happenings' then 'the-falstaff'
       else parser_key
     end,
-    adapter_status = 'active',
+    adapter_status = case
+      when name in ('The Falstaff Happenings') then 'active'
+      else 'failing'
+    end,
     updated_at = now()
 where name in ('El Paso Live', 'Love Buzz', 'Lowbrow Palace Calendar', 'The Falstaff Happenings');
+
+update public.sources
+set parser_key = 'city-el-paso-events',
+    adapter_status = 'active',
+    updated_at = now()
+where name = 'City of El Paso Events';
 
 insert into public.sources (
   city_id, name, source_type, source_scope, url, ingestion_method, parser_key,
