@@ -350,9 +350,22 @@ const falstaffAdapter = genericAdapter({ key: "the-falstaff", name: "The Falstaf
 const loveBuzzBaseAdapter = genericAdapter({ key: "love-buzz", name: "Love Buzz", index: "https://songkick.com/venues/3236249-love-buzz", linkPattern: /songkick\.com\/concerts\//i, defaultVenue: { name: "Love Buzz", address: "3011 Pershing Drive, El Paso, TX 79903", city: "El Paso", region: "TX", postalCode: "79903", latitude: null, longitude: null } });
 const loveBuzzAdapter: SourceAdapter = {
   ...loveBuzzBaseAdapter,
+  async discover() {
+    const items = await loveBuzzBaseAdapter.discover();
+    const unique = new Map<string, SourceDiscovery>();
+    for (const item of items) {
+      try {
+        const parsed = new URL(item.url);
+        const canonical = `https://www.songkick.com${parsed.pathname}`;
+        unique.set(parsed.pathname, { ...item, url: canonical, externalIdHint: `${canonical}#event` });
+      } catch {}
+    }
+    return [...unique.values()];
+  },
   async fetchAndNormalize(item) {
     const event = await loveBuzzBaseAdapter.fetchAndNormalize(item);
     if (!event || normalizeText(event.venue.name ?? "") !== normalizeText("Love Buzz")) return null;
+    if (new Date(event.startAt).getTime() < Date.now() - 12 * 60 * 60 * 1000) return null;
     return event;
   }
 };
