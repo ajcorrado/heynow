@@ -73,7 +73,11 @@ const NON_DETAIL_SLUGS = new Set(["annual-events-and-festivals", "free", "weeken
 function decodeHtml(value: string) { return value.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " "); }
 function stripTags(value: string) { return decodeHtml(value.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()); }
 function extractJsonLd(html: string): unknown[] { const values: unknown[] = []; const regex = /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi; for (const match of html.matchAll(regex)) { try { values.push(JSON.parse(match[1].trim())); } catch {} } return values; }
-function isEventType(value: unknown) { return value === "Event" || (Array.isArray(value) && value.includes("Event")); }
+const SCHEMA_EVENT_TYPES = new Set(["Event", "MusicEvent", "TheaterEvent", "DanceEvent", "ComedyEvent", "Festival", "EducationEvent", "ExhibitionEvent", "SportsEvent", "ScreeningEvent", "SocialEvent", "LiteraryEvent", "FoodEvent", "BusinessEvent", "ChildrensEvent", "SaleEvent", "VisualArtsEvent"]);
+function isEventType(value: unknown) {
+  const values = Array.isArray(value) ? value : [value];
+  return values.some((item) => typeof item === "string" && (SCHEMA_EVENT_TYPES.has(item) || item.endsWith("Event")));
+}
 function findEventNode(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object") return null;
   if (Array.isArray(value)) { for (const item of value) { const found = findEventNode(item); if (found) return found; } return null; }
@@ -239,7 +243,106 @@ function parseGenericEvent(html: string, sourceUrl: string, config: GenericAdapt
 function genericAdapter(config: GenericAdapterConfig): SourceAdapter {
   return { key: config.key, name: config.name, async discover() { const res = await fetch(config.index, { headers: genericHeaders }); if (!res.ok) throw new Error(`${config.name} discovery failed: ${res.status}`); return discoverGenericEvents(await res.text(), config.index, config); }, async fetchAndNormalize(item) { const res = await fetch(item.url, { headers: genericHeaders }); if (!res.ok) throw new Error(`${config.name} event fetch failed ${res.status}: ${item.url}`); return parseGenericEvent(await res.text(), item.url, config); } };
 }
-const elPasoLiveAdapter = genericAdapter({ key: "el-paso-live", name: "El Paso Live", index: "https://www.elpasolive.com/events", linkPattern: /elpasolive\.com\/events\//i });
+const EL_PASO_LIVE_SOURCE_KEY = "el-paso-live";
+const EL_PASO_LIVE_INDEX = "https://www.elpasolive.com/events";
+function discoverElPasoLiveEvents(html: string): SourceDiscovery[] {
+  const discoveries = new Map<string, SourceDiscovery>();
+  const markers = [...html.matchAll(/<div\b[^>]*class=["'][^"']*\bshowtime-event\b[^"']*["'][^>]*data-date=["'](\d{4}-\d{2}-\d{2})["'][^>]*>/gi)];
+  for (let i = 0; i < markers.length; i += 1) {
+    const date = markers[i][1];
+    const start = (markers[i].index ?? 0) + markers[i][0].length;
+    const end = i + 1 < markers.length ? markers[i + 1].index ?? html.length : html.length;
+    const block = html.slice(start, end);
+    for (const match of block.matchAll(/<div\b[^>]*class=["']component--event-list-info["'][^>]*>\s*<div>\s*<a\b[^>]*href=["']([^"']+)["'][^>]*>[\s\S]*?<\/a>\s*<\/div>\s*<div>\s*([^<]+?)\s*<\/div>/gi)) {
+      const url = absoluteUrl(decodeHtml(match[1]), EL_PASO_LIVE_INDEX);
+      if (!url || !/elpasolive\.com\/events\//i.test(url)) continue;
+      const clock = time24(stripTags(match[2]));
+      if (!clock) continue;
+      const occurrenceDate = `${date}T${clock}`;
+      const cleanUrl = url.split(/[?#]/, 1)[0];
+      const key = `${cleanUrl}#${occurrenceDate}`;
+      discoveries.set(key, { url: cleanUrl, occurrenceDate, externalIdHint: key });
+    }
+  }
+  if (!discoveries.size) {
+    const fallback = discoverGenericEvents(html, EL_PASO_LIVE_INDEX, { key: EL_PASO_LIVE_SOURCE_KEY, name: "El Paso Live", index: EL_PASO_LIVE_INDEX, linkPattern: /elpasolive\.com\/events\//i });
+    fallback.forEach((item) => discoveries.set(item.url, item));
+  }
+  return [...discoveries.values()];
+}
+function elPasoLiveDateFromDescription(description: string | null) {
+  if (!description) return null;
+  const match = description.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})[\s\S]*?\|\s*(\d{1,2}:\d{2}\s*[AP]M)/i);
+  if (!match) return null;
+  const months: Record<string, number> = { january:1, february:2, march:3, april:4, may:5, june:6, july:7, august:8, september:9, october:10, november:11, december:12 };
+  const month = months[match[1].toLowerCase()];
+  const clock = time24(match[4]);
+  if (!month || !clock) return null;
+  return `${match[3]}-${String(month).padStart(2, "0")}-${String(Number(match[2])).padStart(2, "0")}T${clock}`;
+}
+function elPasoLiveTicketUrl(html: string, occurrenceDate: string) {
+  const date = new Date(`${occurrenceDate}:00Z`);
+  const label = new Intl.DateTimeFormat("en-US", { weekday:"long", month:"long", day:"numeric", year:"numeric", timeZone:"UTC" }).format(date);
+  const panelStart = html.indexOf('id="all-performances"');
+  if (panelStart < 0) return null;
+  const panel = html.slice(panelStart, panelStart + 20000);
+  for (const row of panel.split(/component--drop-panel-body-row/gi).slice(1)) {
+    if (!normalizeText(stripTags(row)).includes(normalizeText(label))) continue;
+    const href = row.match(/<a\b[^>]*href=["']([^"']+)["'][^>]*>\s*Buy Tickets/i)?.[1];
+    if (href) return decodeHtml(href);
+  }
+  return null;
+}
+function parseElPasoLiveEvent(html: string, item: SourceDiscovery): CanonicalEvent | null {
+  const rawTitle = metaContent(html, "og:title");
+  const title = rawTitle?.replace(/\s*-\s*El Paso Live\s*$/i, "").trim() ?? null;
+  const description = metaContent(html, "og:description");
+  const occurrenceDate = item.occurrenceDate ?? elPasoLiveDateFromDescription(description);
+  if (!title || !occurrenceDate) return null;
+  let startAt: string;
+  try { startAt = genericDate(occurrenceDate, "America/Denver"); } catch { return null; }
+  const descriptionParts = description?.split("|").map((part) => part.trim()).filter(Boolean) ?? [];
+  const venueName = descriptionParts.length >= 3 ? descriptionParts[descriptionParts.length - 1] : null;
+  const ticketUrl = elPasoLiveTicketUrl(html, occurrenceDate);
+  return {
+    sourceKey: EL_PASO_LIVE_SOURCE_KEY,
+    sourceExternalId: item.externalIdHint ?? `${item.url}#${occurrenceDate}`,
+    sourceUrl: item.url,
+    title,
+    description,
+    category: null,
+    tags: [],
+    startAt,
+    endAt: null,
+    timezone: "America/Denver",
+    isAllDay: false,
+    venue: { name: venueName, address: null, city: "El Paso", region: "TX", postalCode: null, latitude: null, longitude: null },
+    imageUrl: metaContent(html, "og:image"),
+    eventUrl: item.url,
+    officialUrl: item.url,
+    ticketUrl,
+    admissionText: null,
+    isFree: description ? /\bfree\b/i.test(description) : null,
+    ingestedAt: new Date().toISOString(),
+    rawText: html,
+    rawPayload: { occurrenceDate, ogDescription: description },
+    extractionConfidence: 0.92
+  };
+}
+const elPasoLiveAdapter: SourceAdapter = {
+  key: EL_PASO_LIVE_SOURCE_KEY,
+  name: "El Paso Live",
+  async discover() {
+    const res = await fetch(EL_PASO_LIVE_INDEX, { headers: genericHeaders });
+    if (!res.ok) throw new Error(`El Paso Live discovery failed: ${res.status}`);
+    return discoverElPasoLiveEvents(await res.text());
+  },
+  async fetchAndNormalize(item) {
+    const res = await fetch(item.url, { headers: genericHeaders });
+    if (!res.ok) throw new Error(`El Paso Live event fetch failed ${res.status}: ${item.url}`);
+    return parseElPasoLiveEvent(await res.text(), item);
+  }
+};
 const lowbrowAdapter = genericAdapter({ key: "lowbrow-palace", name: "Lowbrow Palace", index: "https://lowbrowpalace.com/calendar/", linkPattern: /lowbrowpalace\.com\/(?:event|calendar)\//i, defaultVenue: { name: "Lowbrow Palace", address: "111 E Robinson Ave, El Paso, TX 79902", city: "El Paso", region: "TX", postalCode: "79902", latitude: null, longitude: null } });
 const falstaffAdapter = genericAdapter({ key: "the-falstaff", name: "The Falstaff", index: "https://www.thefalstaffproject.com/events-1", linkPattern: /thefalstaffproject\.com\/events?[-/]/i, defaultVenue: { name: "The Falstaff", address: "3801 Frutas Avenue, Ste. E, El Paso, TX 79905", city: "El Paso", region: "TX", postalCode: "79905", latitude: null, longitude: null } });
 const loveBuzzAdapter = genericAdapter({ key: "love-buzz", name: "Love Buzz", index: "https://songkick.com/venues/3236249-love-buzz", linkPattern: /songkick\.com\/concerts\//i, defaultVenue: { name: "Love Buzz", address: "3011 Pershing Drive, El Paso, TX 79903", city: "El Paso", region: "TX", postalCode: "79903", latitude: null, longitude: null } });
