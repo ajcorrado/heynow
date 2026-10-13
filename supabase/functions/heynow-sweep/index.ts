@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const RUBRIC_VERSION = "signal-v1";
 const HORIZON_DAYS = 30;
-const MAX_SOURCES = 10;
+const MAX_SOURCES = 15;
 const MAX_SHORTLIST = 20;
 // Keep ingestion comfortably inside the parent Edge Function wall-clock budget.
 // Live runs showed 120-event child batches completing in 111-117 seconds,
