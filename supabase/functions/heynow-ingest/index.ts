@@ -219,7 +219,9 @@ function parseGenericEvent(html: string, sourceUrl: string, config: GenericAdapt
   const timezone = config.timezone ?? "America/Denver";
   let startAt: string; try { startAt = genericDate(sourceStart, timezone); } catch { return null; }
   const sourceEnd = stringOrNull(node?.endDate); let endAt: string | null = null;
-  if (sourceEnd) { try { endAt = genericDate(sourceEnd, timezone); } catch {} }
+  if (sourceEnd && !(isDateOnly(sourceEnd) && !isDateOnly(sourceStart) && sourceEnd === sourceStart.slice(0, 10))) {
+    try { endAt = genericDate(sourceEnd, timezone); } catch {}
+  }
   const venue = node ? parseLocation(node) : config.defaultVenue ?? { name: null, address: null, city: null, region: null, postalCode: null, latitude: null, longitude: null };
   const sameDefaultVenue = Boolean(config.defaultVenue?.name && venue.name && normalizeText(config.defaultVenue.name) === normalizeText(venue.name));
   const resolvedVenue = config.defaultVenue
@@ -281,7 +283,7 @@ function elPasoLiveDateFromDescription(description: string | null) {
   return `${match[3]}-${String(month).padStart(2, "0")}-${String(Number(match[2])).padStart(2, "0")}T${clock}`;
 }
 function elPasoLiveTicketUrl(html: string, occurrenceDate: string) {
-  const date = new Date(`${occurrenceDate}:00Z`);
+  const date = new Date(`${occurrenceDate}Z`);
   const label = new Intl.DateTimeFormat("en-US", { weekday:"long", month:"long", day:"numeric", year:"numeric", timeZone:"UTC" }).format(date);
   const panelStart = html.indexOf('id="all-performances"');
   if (panelStart < 0) return null;
@@ -345,7 +347,15 @@ const elPasoLiveAdapter: SourceAdapter = {
 };
 const lowbrowAdapter = genericAdapter({ key: "lowbrow-palace", name: "Lowbrow Palace", index: "https://lowbrowpalace.com/calendar/", linkPattern: /lowbrowpalace\.com\/(?:event|calendar)\//i, defaultVenue: { name: "Lowbrow Palace", address: "111 E Robinson Ave, El Paso, TX 79902", city: "El Paso", region: "TX", postalCode: "79902", latitude: null, longitude: null } });
 const falstaffAdapter = genericAdapter({ key: "the-falstaff", name: "The Falstaff", index: "https://www.thefalstaffproject.com/events-1", linkPattern: /thefalstaffproject\.com\/events?[-/]/i, defaultVenue: { name: "The Falstaff", address: "3801 Frutas Avenue, Ste. E, El Paso, TX 79905", city: "El Paso", region: "TX", postalCode: "79905", latitude: null, longitude: null } });
-const loveBuzzAdapter = genericAdapter({ key: "love-buzz", name: "Love Buzz", index: "https://songkick.com/venues/3236249-love-buzz", linkPattern: /songkick\.com\/concerts\//i, defaultVenue: { name: "Love Buzz", address: "3011 Pershing Drive, El Paso, TX 79903", city: "El Paso", region: "TX", postalCode: "79903", latitude: null, longitude: null } });
+const loveBuzzBaseAdapter = genericAdapter({ key: "love-buzz", name: "Love Buzz", index: "https://songkick.com/venues/3236249-love-buzz", linkPattern: /songkick\.com\/concerts\//i, defaultVenue: { name: "Love Buzz", address: "3011 Pershing Drive, El Paso, TX 79903", city: "El Paso", region: "TX", postalCode: "79903", latitude: null, longitude: null } });
+const loveBuzzAdapter: SourceAdapter = {
+  ...loveBuzzBaseAdapter,
+  async fetchAndNormalize(item) {
+    const event = await loveBuzzBaseAdapter.fetchAndNormalize(item);
+    if (!event || normalizeText(event.venue.name ?? "") !== normalizeText("Love Buzz")) return null;
+    return event;
+  }
+};
 const versoAdapter = genericAdapter({ key: "verso", name: "VERSO", index: "https://www.versoelpaso.com/", linkPattern: /versoelpaso\.com\/event-details\//i, defaultVenue: { name: "VERSO", address: "2711 N Stanton St, El Paso, TX 79902", city: "El Paso", region: "TX", postalCode: "79902", latitude: null, longitude: null } });
 
 const CITY_EVENTS_SOURCE_KEY = "city-el-paso-events";
