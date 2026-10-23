@@ -15,10 +15,18 @@ manual_first_pilot:
     - id: edition_1
       target_date: "2026-10-26"
       content_window: "2026-10-29 through 2026-11-01"
-      status: awaiting_adam_selection
+      status: selected_for_factual_review
       shortlist: ops/edition-1-shortlist-2026-10-26.md
       candidate_count: 13
-      recommended_pick_count: 6
+      selected_count: 3
+      selection_recorded_at: "2026-10-23"
+      selected_events:
+        - title: Last Thursday at The Falstaff
+          event_id: e9734819-0975-4b1b-94b6-5926d8cb6d11
+        - title: Día de los Muertos Festival at San Elizario
+          event_id: 46a7cc03-b4cf-4eb1-93c8-de119c044f8c
+        - title: Shapeshifters
+          event_id: 63a75986-5b2c-4fa2-88f8-ad5b099a0ca2
     - id: edition_2
       target_date: "2026-10-28"
       status: not_started
@@ -36,11 +44,11 @@ manual_first_pilot:
     - manual_instagram_post
     - instagram_url_recorded
     - retrospective_captured
-  current_gate: edition_1_adam_selection
+  current_gate: edition_1_factual_review_and_editorial_draft
   next_action: >-
-    Adam reviews the Edition 1 shortlist, selects 3-8 events, and records
-    keep/reject reasons. Then verify and data-approve only those selections,
-    draft the carousel together, and stop again for publication go/no-go.
+    Re-open evidence and complete factual review for the three selected events,
+    then draft Edition 1 carousel copy and order for Adam's review. Do not change
+    publication approval or post to Instagram; stop for explicit go/no-go.
   publication_authorized: false
   production_change_authorized: false
   database_changes_made: false
@@ -68,6 +76,22 @@ manual_first_pilot:
     - keep_canonical_facts_independent_from_publishing_content
     - do_not_bypass_data_editorial_or_publication_review
     - do_not_publish_without_adam_go_no_go
+  future_distribution_concept:
+    status: non_binding_not_final
+    changes_current_workflow: false
+    implementation_authorized: false
+    principles:
+      - people_may_follow_multiple_tracks
+      - events_may_belong_to_multiple_tracks
+      - general_master_account_may_aggregate_all_tracks
+    possible_tracks:
+      - music
+      - arts_and_culture
+      - food
+      - family
+      - public_interest
+      - education
+      - general_master
 
 # Archived release record follows. Preserve it as evidence; do not reopen its
 # infrastructure sprint to absorb the manual-first pilot.
