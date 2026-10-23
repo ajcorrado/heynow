@@ -78,7 +78,7 @@ The next outcome is three deliberately small, human-reviewed El Paso Instagram e
 
 | Edition | Target date | Working content window | Current state |
 | --- | --- | --- | --- |
-| 1 | Monday, October 26, 2026 | October 29–November 1 | 13-candidate shortlist prepared; awaiting Adam's 3–8 selections |
+| 1 | Monday, October 26, 2026 | October 29–November 1 | Adam selected 3 events; factual review and editorial draft are next |
 | 2 | Wednesday, October 28, 2026 | next useful near-term window | not started |
 | 3 | Friday, October 30, 2026 | next useful near-term window | not started |
 
@@ -95,7 +95,7 @@ Each edition follows the same bounded loop:
 7. manually post to Instagram and record the URL only after approval;
 8. capture keep/reject reasons and process lessons for the next edition.
 
-No approval state was changed during shortlist preparation.
+Adam selected three events on October 23. Selection is editorial direction only; no data, editorial, or publication approval state has been changed.
 
 ---
 
@@ -116,24 +116,35 @@ Exceptions require a concrete selected-event gap, a production incident, or a se
 
 ---
 
-## 6. Edition 1 status and recommended mix
+## 6. Edition 1 selection
 
-The evidence-backed shortlist is `ops/edition-1-shortlist-2026-10-26.md`.
+Adam selected these three events on October 23:
 
-Suggested six-event mix for Adam's review:
+1. Last Thursday at The Falstaff;
+2. Día de los Muertos Festival at San Elizario;
+3. Shapeshifters.
 
-1. Shapeshifters — experimental Borderland screen dance;
-2. Last Thursday at The Falstaff — local galleries, studios, market, and music;
-3. Candlelight: A Haunted Evening of Halloween Classics — paid date-night/culture option;
-4. Freedom Fright — free all-ages option;
-5. Halloween Fest 2026 — Franklin Mountains nature-and-Halloween option;
-6. Día de los Muertos Festival at San Elizario — strong regional tradition and community close.
-
-This is an editorial recommendation only. All six remain unapproved for publication. Recorded conflicts and weaker-evidence candidates must be resolved before use.
+The evidence and candidate notes remain in `ops/edition-1-shortlist-2026-10-26.md`. Selection does not approve facts, editorial copy, or publication. Re-open each source, complete factual review, then draft the carousel for Adam's review.
 
 ---
 
-## 7. Required protocol
+## 7. Future distribution concept — non-binding
+
+HeyNow may eventually let people follow multiple editorial tracks or channels. Adam's initial examples are:
+
+- music;
+- arts and culture;
+- food;
+- family;
+- public interest;
+- education;
+- general/master account.
+
+This is not a final taxonomy and does not change the current workflow. Do not add schema, routes, accounts, automation, or approval behavior for it during the three-edition pilot. Events may eventually belong to more than one track, while the general/master account can aggregate across tracks. Use the concept only as context when observing audience and editorial patterns.
+
+---
+
+## 8. Required protocol
 
 At the start of work:
 
@@ -148,13 +159,13 @@ At completion report: status, changed files/behavior/schema/deployments, verific
 
 ---
 
-## 8. Next single action
+## 9. Next single action
 
-**Adam reviews the Edition 1 shortlist, chooses 3–8 events, and gives keep/reject reasons.** Then complete factual review only for those selections and draft the carousel together. Stop again for publication go/no-go.
+**Complete factual review for the three selected events and draft the Edition 1 carousel copy and order for Adam's review.** Do not change publication approval or post to Instagram; stop again for explicit go/no-go.
 
 ---
 
-## 9. State hierarchy
+## 10. State hierarchy
 
 If records disagree, use:
 
