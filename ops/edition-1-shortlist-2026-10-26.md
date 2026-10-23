@@ -3,18 +3,23 @@
 **Editorial target:** Monday, October 26, 2026  
 **Event window:** Thursday, October 29 through Sunday, November 1  
 **Prepared:** October 23, 2026 (America/Denver)  
-**Status:** Candidate review only — no data, editorial, or publication approval has been granted.
+**Status:** Adam selected three events on October 23 for factual review and editorial drafting. No data, editorial, or publication approval has been granted.
 
-## Recommended 6-event mix
+## Adam's Edition 1 selection
 
-1. **Shapeshifters** — a free UTEP screen-dance work about the Rio Grande, the border wall, and interspecies relationships. It gives the edition a distinctive Borderland arts anchor.
-2. **Last Thursday at The Falstaff** — the strongest “local creative ecosystem” pick: galleries, studios, music, food, and a handmade market in one free evening.
-3. **Candlelight: A Haunted Evening of Halloween Classics** — a paid, atmospheric date-night option that broadens the edition beyond family events.
-4. **Freedom Fright** — free, all-ages, and useful for families; the Fort Bliss access requirement is important service information.
-5. **Halloween Fest 2026** — outdoors, low-cost, and place-specific to the Franklin Mountains rather than a generic Halloween listing.
-6. **Día de los Muertos Festival at San Elizario** — the strongest regional culture/community closer, with first-party confirmation.
+1. **Last Thursday at The Falstaff**
+2. **Día de los Muertos Festival at San Elizario**
+3. **Shapeshifters**
 
-This is a recommendation for Adam's review, not a publication decision.
+These are selections for the next review stage, not factual, editorial, or publication approvals.
+
+The future channel concept is useful as an observation, not an operational taxonomy. If the eventual tracks existed, this edition might naturally span:
+
+- Last Thursday — arts and culture;
+- San Elizario Día de los Muertos — arts and culture, family, and public interest;
+- Shapeshifters — arts and culture, education, and public interest.
+
+Events may fit multiple tracks, and the general/master account could aggregate all of them. Do not add tags, schema, accounts, or workflow steps for this concept during the pilot.
 
 ## Candidate set
 
@@ -43,8 +48,6 @@ This is a recommendation for Adam's review, not a publication decision.
 - Re-open all selected links on the day of factual approval. Availability and schedules can change.
 - Keep/reject reasons from Adam should be recorded before drafting Edition 2; that feedback is the main learning output of this pilot.
 
-## Adam review
+## Next review step
 
-Please mark **keep**, **reject**, or **hold** for each candidate and choose 3–8 total. For each reject/hold, one short reason is enough (for example: too generic, too commercial, weak evidence, wrong audience, redundant, or not distinctive enough).
-
-After selection, the next bounded step is factual review of only those events. Editorial copy and visual order come next. Publication remains separately gated.
+Re-open the three selected events' source pages, resolve any factual uncertainty through the normal review path, and draft the carousel title, event copy, caption, and order for Adam. Publication remains separately gated and requires explicit go/no-go.
