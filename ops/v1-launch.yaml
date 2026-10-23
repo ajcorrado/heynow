@@ -1,3 +1,77 @@
+manual_first_pilot:
+  id: heynow-manual-first-editorial-pilot-2026-10
+  approved_at: "2026-10-23"
+  timezone: America/Denver
+  status: in_progress
+  objective: >-
+    Publish three small El Paso Instagram editorial editions through a
+    human-reviewed loop, learn from Adam's keep/reject decisions, and postpone
+    nonessential infrastructure until the editorial product proves what it needs.
+  working_branch: ops/manual-first-editorial-pilot
+  production_branch: main
+  production_branch_sha: 93bc46bf90df75ad47cfeb07210a450eacfcec5f
+  open_pull_requests_at_start: 0
+  edition_schedule:
+    - id: edition_1
+      target_date: "2026-10-26"
+      content_window: "2026-10-29 through 2026-11-01"
+      status: awaiting_adam_selection
+      shortlist: ops/edition-1-shortlist-2026-10-26.md
+      candidate_count: 13
+      recommended_pick_count: 6
+    - id: edition_2
+      target_date: "2026-10-28"
+      status: not_started
+    - id: edition_3
+      target_date: "2026-10-30"
+      status: not_started
+  per_edition_gate:
+    - shortlist_ten_to_fifteen_candidates
+    - verify_selected_event_facts_and_live_links
+    - adam_selects_three_to_eight_with_keep_reject_reasons
+    - data_approval_recorded_separately
+    - editorial_approval_recorded_separately
+    - publication_approval_recorded_separately
+    - explicit_go_no_go_received
+    - manual_instagram_post
+    - instagram_url_recorded
+    - retrospective_captured
+  current_gate: edition_1_adam_selection
+  next_action: >-
+    Adam reviews the Edition 1 shortlist, selects 3-8 events, and records
+    keep/reject reasons. Then verify and data-approve only those selections,
+    draft the carousel together, and stop again for publication go/no-go.
+  publication_authorized: false
+  production_change_authorized: false
+  database_changes_made: false
+  approval_states_changed: false
+  freeze:
+    - source_radar_implementation
+    - broad_source_reconciliation
+    - new_adapters_or_bulk_source_activation
+    - ten_source_ingestion_acceptance
+    - automated_ingestion_scheduling
+    - schema_or_canonical_model_redesign
+    - newsletter_and_public_site_expansion
+    - direct_or_scheduled_instagram_publishing
+    - monitoring_or_management_product
+    - additional_cities
+    - speculative_automation_or_architecture_rewrites
+  freeze_exceptions:
+    - selected_event_content_gap
+    - production_incident
+    - security_or_data_integrity_need
+  integrity_rules:
+    - retain_source_provenance
+    - do_not_destructively_merge_possible_duplicates
+    - do_not_silently_overwrite_approved_facts
+    - keep_canonical_facts_independent_from_publishing_content
+    - do_not_bypass_data_editorial_or_publication_review
+    - do_not_publish_without_adam_go_no_go
+
+# Archived release record follows. Preserve it as evidence; do not reopen its
+# infrastructure sprint to absorb the manual-first pilot.
+
 sprint:
   id: heynow-instagram-v1-2026-10
   objective: >-
@@ -7,16 +81,15 @@ sprint:
   scope_frozen_at: "2026-10-07T18:21:00-06:00"
   branch: launch/instagram-v1
   base_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
-  production_sha: 2d51061e95aae3441f9d6e1fd7b1b0ee5da76939
+  production_sha: 93bc46bf90df75ad47cfeb07210a450eacfcec5f
   release_candidate_sha: a31fc270b4e9a47907a30687edce4c30a9c35d21
   checkpoint_code_sha: b2f232cf0bca52af3f5417453251f4f51f8b46ac
-  current_gate: G5_production
-  last_checkpoint_at: "2026-10-12T16:40:00-06:00"
+  current_gate: application_release_complete_manual_publication_pending
+  last_checkpoint_at: "2026-10-23T00:00:00-06:00"
   resume_from: >-
-    Stop for Adam's explicit production go/no-go. If authorized, reconcile and
-    merge PR #4, deploy the approved release candidate, run the production smoke,
-    and retain rollback to dpl_CPCDekEQjKsoQSJ8bvak9FHbpnJ1 at SHA 2d51061e.
-    Instagram publication remains manual and requires separate confirmation.
+    Treat this sprint as an archived application-release record. Continue from
+    manual_first_pilot.next_action. Do not merge, deploy, change approval state,
+    or publish to Instagram without the applicable explicit approval.
   target_release_date: "2026-10-10"
   timezone: America/Denver
 
@@ -54,13 +127,14 @@ continuity:
     Stop at a committed boundary. Never leave a migration partly applied, a
     deployment promotion in progress, or multiple agents writing the same file.
   resume_rule: >-
-    Read ops/v1-launch.yaml and the open launch pull request first, verify the
-    recorded branch and deployment still match, then execute only resume_from.
+    Read HEY_NOW_STATE.md, manual_first_pilot, and the current edition shortlist;
+    verify current GitHub and event evidence, then execute only the recorded
+    next_action.
   scheduled_resume_prompt: >-
-    Resume the HeyNow Instagram V1 launch from ops/v1-launch.yaml. Reconcile the
-    open launch pull request and live Vercel/Supabase state, do not repeat passed
-    work, execute the next bounded item, checkpoint evidence, and stop for any
-    irreversible production action or Adam decision.
+    Resume HeyNow's manual-first editorial pilot from ops/v1-launch.yaml. Do not
+    repeat completed infrastructure work. Advance only the current edition's
+    human-reviewed loop and stop for Adam's editorial judgment, publication
+    approval, or production go/no-go.
 
 scope:
   required:
@@ -450,17 +524,19 @@ gates:
     approved_at: "2026-10-12T16:39:00-06:00"
 
   - id: G5_production
-    status: in_progress
+    status: application_release_passed_manual_publication_pending
     criteria:
       - production_matches_approved_sha
       - production_smoke_passes
       - first_real_post_published_manually
       - Instagram_URL_recorded
     evidence:
+      - PR #4 merged to main at 93bc46bf90df75ad47cfeb07210a450eacfcec5f on 2026-10-12
+      - prior project state records Instagram Publishing V1 as launched
       - public email signup confirmed disabled by Adam
       - Supabase Pro requirement explicitly waived by Adam with Free-tier pause and protection risk accepted
-      - release candidate and rollback deployment are identified
-      - production deployment and Instagram publication remain unauthorized
-    approved_by: null
-    approved_at: null
+      - application release is complete; first manual editorial-series post and Instagram URL remain pending
+      - no Edition 1 publication is authorized by the manual-first pivot
+    approved_by: adam
+    approved_at: "2026-10-12T16:41:04-06:00"
 
